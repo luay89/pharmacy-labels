@@ -1,4 +1,4 @@
-const CACHE_NAME = 'product-labels-v2';
+const CACHE_NAME = 'product-labels-v3';
 const ASSETS = [
   './',
   './index.html',

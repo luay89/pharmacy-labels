@@ -14,7 +14,7 @@ const SESSION_SECRET = process.env.SESSION_SECRET || '';
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 const FREE_LABEL_LIMIT = 20;
-const PRICE_CENTS = 300;
+const PRICE_CENTS = 500;
 const SESSION_COOKIE = 'product_labels_session';
 const SESSION_MAX_AGE = 365 * 24 * 60 * 60;
 
@@ -23,6 +23,21 @@ if (SESSION_SECRET.length < 32) {
 }
 if (process.env.NODE_ENV === 'production' && APP_URL.protocol !== 'https:') {
   throw new Error('PUBLIC_APP_URL must use HTTPS in production.');
+}
+if (STRIPE_SECRET_KEY && !/^(sk|rk)_(test|live)_/.test(STRIPE_SECRET_KEY)) {
+  throw new Error('STRIPE_SECRET_KEY must be a Stripe secret key (sk_test_/sk_live_/rk_...).');
+}
+if (STRIPE_WEBHOOK_SECRET && !STRIPE_WEBHOOK_SECRET.startsWith('whsec_')) {
+  throw new Error('STRIPE_WEBHOOK_SECRET must start with whsec_.');
+}
+if (require.main === module) {
+  if (!STRIPE_SECRET_KEY) console.warn('Stripe disabled: STRIPE_SECRET_KEY is not set.');
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.warn('Stripe webhook disabled: STRIPE_WEBHOOK_SECRET is not set (async payments, refunds and disputes will not be processed).');
+  }
+  if (process.env.NODE_ENV === 'production' && STRIPE_SECRET_KEY.includes('_test_')) {
+    console.warn('NODE_ENV=production is using a Stripe test key.');
+  }
 }
 
 const dataDir = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
@@ -93,6 +108,7 @@ const refreshEntitlement = db.prepare(`
   WHERE id = ?
 `);
 const recordStripeEvent = db.prepare('INSERT OR IGNORE INTO stripe_events (id) VALUES (?)');
+const sessionExists = db.prepare('SELECT 1 FROM app_sessions WHERE id = ?');
 
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 const app = express();
@@ -157,6 +173,18 @@ function requireSameOrigin(req, res, next) {
 const checkoutLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false
+});
+const completeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false
+});
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
   standardHeaders: 'draft-7',
   legacyHeaders: false
 });
@@ -232,7 +260,12 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
   if (event.type === 'checkout.session.completed' ||
       event.type === 'checkout.session.async_payment_succeeded') {
     const checkout = event.data.object;
-    if (isPaidCheckout(checkout, checkout.client_reference_id)) {
+    if (checkout.payment_status !== 'paid') {
+      // Delayed payment methods: access is granted only on async_payment_succeeded.
+    } else if (!isPaidCheckout(checkout, checkout.client_reference_id) ||
+        !sessionExists.get(checkout.client_reference_id)) {
+      console.warn(`Stripe event ${event.id} ignored: checkout did not match the expected purchase.`);
+    } else {
       const markEventAndUnlock = db.transaction(() => {
         const result = recordStripeEvent.run(event.id);
         if (result.changes) activatePurchase(checkout, checkout.client_reference_id);
@@ -265,7 +298,8 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json', limit: '
 });
 
 app.use(express.json({ limit: '8kb' }));
-app.use('/api', requireSameOrigin, requestSession);
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.use('/api', apiLimiter, requireSameOrigin, requestSession);
 
 app.get('/api/session', (req, res) => {
   const current = selectSession.get(req.appSessionId);
@@ -331,7 +365,7 @@ app.post('/api/checkout', checkoutLimiter, async (req, res, next) => {
   }
 });
 
-app.post('/api/checkout/complete', async (req, res, next) => {
+app.post('/api/checkout/complete', completeLimiter, async (req, res, next) => {
   const sessionId = req.body && req.body.sessionId;
   if (typeof sessionId !== 'string' || !/^cs_(test|live)_[A-Za-z0-9]+$/.test(sessionId)) {
     res.status(400).json({ error: 'invalid_checkout_session' });
@@ -342,7 +376,21 @@ app.post('/api/checkout/complete', async (req, res, next) => {
     return;
   }
   try {
-    const checkout = await stripe.checkout.sessions.retrieve(sessionId);
+    let checkout;
+    try {
+      checkout = await stripe.checkout.sessions.retrieve(sessionId);
+    } catch (error) {
+      if (error && error.type === 'StripeInvalidRequestError') {
+        res.status(403).json({ error: 'purchase_not_verified' });
+        return;
+      }
+      throw error;
+    }
+    if (checkout.payment_status !== 'paid' && checkout.status === 'complete' &&
+        checkout.client_reference_id === req.appSessionId) {
+      res.status(409).json({ error: 'payment_pending' });
+      return;
+    }
     if (!isPaidCheckout(checkout, req.appSessionId)) {
       res.status(403).json({ error: 'purchase_not_verified' });
       return;
@@ -359,7 +407,6 @@ app.post('/api/checkout/complete', async (req, res, next) => {
   }
 });
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
 app.get(['/', '/index.html'], (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/manifest.webmanifest', (_req, res) => res.sendFile(path.join(__dirname, 'manifest.webmanifest')));
@@ -378,4 +425,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, db };
+module.exports = { app, db, stripe };

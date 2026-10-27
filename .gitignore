@@ -5,4 +5,8 @@ android/local.properties
 *.apk
 node_modules/
 .env
+.env*
+!.env.example
 data/
+*.sqlite
+*.sqlite-*

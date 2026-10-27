@@ -1,0 +1,20 @@
+{
+  "name": "product-labels",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Product label web app with server-verified Stripe unlock",
+  "engines": {
+    "node": ">=22.9.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "check": "node --check server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "stripe": "^18.5.0"
+  }
+}

@@ -120,8 +120,11 @@ app.use((req, res, next) => {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Frame-Options': 'DENY',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Content-Security-Policy': "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'",
+    'Cross-Origin-Opener-Policy': 'same-origin',
     'Cache-Control': 'no-store'
   });
+  if (APP_URL.protocol === 'https:') res.set('Strict-Transport-Security', 'max-age=15552000');
   next();
 });
 
@@ -138,8 +141,16 @@ function safeEqual(left, right) {
 function requestSession(req, res, next) {
   const raw = req.headers.cookie || '';
   const match = raw.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
+  let cookieValue = '';
   if (match) {
-    const [id, signature, extra] = decodeURIComponent(match[1]).split('.');
+    try {
+      cookieValue = decodeURIComponent(match[1]);
+    } catch {
+      // Malformed cookie: fall through and issue a fresh session.
+    }
+  }
+  if (cookieValue) {
+    const [id, signature, extra] = cookieValue.split('.');
     if (id && signature && !extra && safeEqual(signature, sessionSignature(id))) {
       const session = selectSession.get(id);
       if (session) {
@@ -414,7 +425,20 @@ app.get('/sw.js', (_req, res) => res.sendFile(path.join(__dirname, 'sw.js')));
 app.get('/web-icon-192.svg', (_req, res) => res.sendFile(path.join(__dirname, 'web-icon-192.svg')));
 app.get('/web-icon-512.svg', (_req, res) => res.sendFile(path.join(__dirname, 'web-icon-512.svg')));
 app.use((_req, res) => res.status(404).send('Not found.'));
+const CLIENT_ERRORS = {
+  'entity.parse.failed': [400, 'invalid_json'],
+  'entity.too.large': [413, 'payload_too_large']
+};
 app.use((error, _req, res, _next) => {
+  const clientError = CLIENT_ERRORS[error && error.type];
+  if (clientError) {
+    res.status(clientError[0]).json({ error: clientError[1] });
+    return;
+  }
+  if (error && error.expose && error.status >= 400 && error.status < 500) {
+    res.status(error.status).json({ error: 'invalid_request' });
+    return;
+  }
   console.error('Request failed:', error.message);
   res.status(500).json({ error: 'internal_server_error' });
 });

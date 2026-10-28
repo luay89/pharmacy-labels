@@ -104,6 +104,18 @@ test('server enforces trial limits and processes signed Stripe entitlement event
   assert.equal(tamperedSession.status, 200);
   assert.equal((await tamperedSession.json()).unlocked, false);
 
+  const malformedSession = await fetch(`${origin}/api/session`, {
+    headers: { Cookie: 'product_labels_session=%E0%A4%A' }
+  });
+  assert.equal(malformedSession.status, 200);
+  assert.match(malformedSession.headers.get('set-cookie'), /^product_labels_session=/);
+  assert.equal((await malformedSession.json()).unlocked, false);
+  const freshCookie = malformedSession.headers.get('set-cookie').split(';')[0];
+  const freshSession = await fetch(`${origin}/api/session`, { headers: { Cookie: freshCookie } });
+  assert.equal(freshSession.status, 200);
+  assert.equal(freshSession.headers.get('set-cookie'), null);
+  assert.deepEqual(await freshSession.json(), { printedCount: 0, freeLimit: 20, unlocked: false });
+
   const reserve = (count, sessionCookie = cookie, requestOrigin = origin) => fetch(
     `${origin}/api/labels/reserve`,
     {
@@ -340,4 +352,47 @@ test('webhook rejects bad signatures, ignores unpaid or mismatched sessions and 
   const newEventSamePayment = await sendStripeEvent('evt_async_paid_again', 'checkout.session.completed', checkout);
   assert.equal(newEventSamePayment.status, 200);
   assert.equal(await isUnlocked(cookie), false);
+});
+
+test('malformed and oversized request bodies return client errors without details', async () => {
+  const { cookie } = await newSession();
+  const send = (body, pathname = '/api/labels/reserve') => fetch(`${origin}${pathname}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: origin },
+    body
+  });
+
+  const malformed = await send('{bad');
+  assert.equal(malformed.status, 400);
+  assert.deepEqual(await malformed.json(), { error: 'invalid_json' });
+
+  const oversized = await send(JSON.stringify({ count: 1, pad: 'x'.repeat(9000) }));
+  assert.equal(oversized.status, 413);
+  assert.deepEqual(await oversized.json(), { error: 'payload_too_large' });
+
+  const oversizedCheckout = await send(JSON.stringify({ sessionId: 'x'.repeat(9000) }), '/api/checkout/complete');
+  assert.equal(oversizedCheckout.status, 413);
+
+  const oversizedWebhook = await fetch(`${origin}/api/stripe/webhook`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'stripe-signature': 't=1,v1=fake' },
+    body: JSON.stringify({ pad: 'x'.repeat(70 * 1024) })
+  });
+  assert.equal(oversizedWebhook.status, 413);
+
+  const stillWorks = await send(JSON.stringify({ count: 1 }));
+  assert.equal(stillWorks.status, 200);
+});
+
+test('responses carry security headers and no HSTS over plain HTTP', async () => {
+  const response = await fetch(`${origin}/`);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(response.headers.get('x-frame-options'), 'DENY');
+  assert.equal(response.headers.get('cross-origin-opener-policy'), 'same-origin');
+  assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  assert.match(response.headers.get('content-security-policy'), /object-src 'none'/);
+  assert.equal(response.headers.get('strict-transport-security'), null);
+  assert.equal(response.headers.get('x-powered-by'), null);
+  assert.equal(response.headers.get('access-control-allow-origin'), null);
 });

@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ملصقات المنتجات</title>
+<title>Product Labels</title>
 <meta name="theme-color" content="#0d6b52">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
@@ -48,7 +48,7 @@ h2{font-size:1.05rem;margin:0 0 12px;font-weight:700}
 @media (max-width:480px){.fields{grid-template-columns:minmax(0,1fr)}}
 label.f{display:grid;gap:4px;font-size:.85rem;color:var(--muted);min-width:0}
 input,select,button{font:inherit;color:inherit;accent-color:var(--accent)}
-input[type=text],input[type=number],input[type=month],input[type=search],select{
+input[type=text],input[type=email],input[type=number],input[type=month],input[type=search],select{
   width:100%;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px 10px;color:var(--ink)}
 input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .mono{font-family:var(--f-mono);direction:ltr;text-align:left}
@@ -131,9 +131,30 @@ td input.copies{width:64px;padding:4px 6px}
 @media (prefers-reduced-motion:reduce){.toast{transition:none}}
 #print-root{display:none}
 
+/* purchase help dialog */
+dialog#buy-dialog{width:min(640px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--line);border-radius:10px;
+  background:var(--panel);color:var(--ink);box-shadow:0 12px 40px rgba(0,0,0,.25)}
+dialog#buy-dialog[open]{display:flex;flex-direction:column}
+dialog#buy-dialog::backdrop{background:rgba(10,20,16,.55)}
+.dlg-head,.dlg-foot{display:flex;align-items:center;gap:10px;padding:14px 18px;flex:0 0 auto}
+.dlg-head{justify-content:space-between;border-bottom:1px solid var(--line)}
+.dlg-head h2{margin:0}
+.dlg-foot{justify-content:flex-end;flex-wrap:wrap;border-top:1px solid var(--line)}
+.dlg-x{font-size:1.3rem;line-height:1;padding:4px 10px}
+.dlg-body{overflow-y:auto;padding:4px 18px 12px;font-size:.92rem}
+.dlg-body h3{font-size:.98rem;margin:16px 0 6px;color:var(--accent)}
+.dlg-body p{margin:6px 0}
+.dlg-body ol,.dlg-body ul{margin:6px 0;padding-inline-start:22px;display:grid;gap:4px}
+.dlg-body dl{margin:6px 0}
+.dlg-body dt{font-weight:700;margin-top:8px}
+.dlg-body dd{margin:2px 0 0;margin-inline-start:0;color:var(--muted)}
+.dlg-body .note{padding:8px 12px;border-radius:7px;background:var(--accent-soft)}
+.dlg-body .note.warn{background:var(--warn-soft);color:var(--warn)}
+@media (max-width:480px){.dlg-foot button{flex:1}.head-tools{width:100%}#btn-buy-help{flex:1 1 100%}}
+
 @media print{
   html,body{background:#fff!important;padding:0!important;margin:0!important}
-  .wrap,.toast{display:none!important}
+  .wrap,.toast,dialog{display:none!important}
   #print-root{display:block}
   #print-root .page{position:relative;overflow:hidden;page-break-after:always;break-after:page}
   #print-root .page:last-child{page-break-after:auto;break-after:auto}
@@ -146,19 +167,20 @@ td input.copies{width:64px;padding:4px 6px}
 <body>
 <div class="wrap">
   <header>
-    <h1>ملصقات المنتجات<small>أنشئ واطبع ملصقات باركود و QR للمنتجات بمختلف أنواعها</small></h1>
+    <h1><span data-i18n="appTitle">Product Labels</span><small data-i18n="appTagline">Create and print barcode and QR labels for all kinds of products</small></h1>
     <div class="head-tools">
-      <label><span id="theme-label">المظهر</span>
+      <button type="button" class="primary" id="btn-buy-help" aria-haspopup="dialog" aria-controls="buy-dialog" data-i18n="buyBtn">Buy / Purchase</button>
+      <label><span id="theme-label" data-i18n="themeLabel">Theme</span>
         <select id="theme-select" aria-labelledby="theme-label">
-          <option value="system">حسب الجهاز</option>
-          <option value="light">نهاري</option>
-          <option value="dark">ليلي</option>
+          <option value="system" data-i18n="themeSystem">System</option>
+          <option value="light" data-i18n="themeLight">Light</option>
+          <option value="dark" data-i18n="themeDark">Dark</option>
         </select>
       </label>
-      <label><span id="language-label">اللغة</span>
+      <label><span id="language-label" data-i18n="langLabel">Language</span>
         <select id="language-select" aria-labelledby="language-label">
-          <option value="ar">العربية</option>
           <option value="en">English</option>
+          <option value="ar">العربية</option>
           <option value="zh">中文</option>
           <option value="hi">हिन्दी</option>
           <option value="es">Español</option>
@@ -177,39 +199,39 @@ td input.copies{width:64px;padding:4px 6px}
   <div class="grid-main">
     <!-- form -->
     <section class="panel" aria-labelledby="h-prod">
-      <h2 id="h-prod"><span id="form-title">منتج جديد</span></h2>
+      <h2 id="h-prod"><span id="form-title" data-i18n="newProduct">New product</span></h2>
       <div class="fields">
-        <label class="f full">اسم المنتج
+        <label class="f full"><span data-i18n="fName">Product name</span>
           <input type="text" id="f-name" autocomplete="off">
         </label>
-        <label class="f">السعر
+        <label class="f"><span data-i18n="fPrice">Price</span>
           <input type="text" id="f-price" inputmode="decimal" autocomplete="off">
         </label>
-        <label class="f">العملة
-          <input type="text" id="f-currency" placeholder="مثال: د.ع" autocomplete="off">
+        <label class="f"><span data-i18n="fCurrency">Currency</span>
+          <input type="text" id="f-currency" placeholder="e.g. USD" data-i18n-attr="placeholder:currencyPh" autocomplete="off">
         </label>
         <div class="f full" style="display:grid;gap:4px;font-size:.85rem;color:var(--muted)">
-          <span id="code-label">رمز الباركود</span>
+          <span id="code-label" data-i18n="codeLabel">Barcode value</span>
           <div class="code-row">
             <input type="text" id="f-code" class="mono" autocomplete="off" spellcheck="false" aria-labelledby="code-label">
-            <button type="button" id="btn-newcode" title="توليد رقم تسلسلي جديد">رقم جديد</button>
+            <button type="button" id="btn-newcode" title="Generate a new serial number" data-i18n="newCodeBtn" data-i18n-attr="title:newCodeTitle">New code</button>
           </div>
         </div>
-        <label class="f">تاريخ الانتهاء <span class="sub">(اختياري، مثل الأغذية والأدوية)</span>
+        <label class="f"><span data-i18n="fExp">Expiry date</span> <span class="sub" data-i18n="fExpHint">(optional, e.g. food and medicine)</span>
           <input type="month" id="f-exp">
         </label>
-        <label class="f">رقم الدفعة <span class="sub">(اختياري)</span>
+        <label class="f"><span data-i18n="fBatch">Batch number</span> <span class="sub" data-i18n="optional">(optional)</span>
           <input type="text" id="f-batch" class="mono" autocomplete="off">
         </label>
       </div>
       <div class="row" style="margin-top:16px">
-        <button type="button" class="primary" id="btn-save">حفظ المنتج</button>
-        <button type="button" id="btn-clear">منتج جديد</button>
+        <button type="button" class="primary" id="btn-save" data-i18n="saveBtn">Save product</button>
+        <button type="button" id="btn-clear" data-i18n="newProduct">New product</button>
       </div>
 
       <hr class="divider">
-      <h2>نوع الرمز</h2>
-      <div class="seg" role="group" aria-label="نوع الرمز" id="type-seg">
+      <h2 data-i18n="codeType">Code type</h2>
+      <div class="seg" role="group" aria-label="Code type" data-i18n-attr="aria-label:codeType" id="type-seg">
         <button type="button" data-type="CODE128">Code 128</button>
         <button type="button" data-type="EAN13">EAN-13</button>
         <button type="button" data-type="QR">QR</button>
@@ -217,39 +239,39 @@ td input.copies{width:64px;padding:4px 6px}
       <p class="sub" id="type-hint" style="margin:8px 0 0"></p>
 
       <hr class="divider">
-      <h2>ما يظهر على الملصق</h2>
+      <h2 data-i18n="onLabel">Shown on the label</h2>
       <div class="checks">
-        <label><input type="checkbox" id="s-name"> الاسم</label>
-        <label><input type="checkbox" id="s-price"> السعر</label>
-        <label><input type="checkbox" id="s-code"> الرقم تحت الباركود</label>
-        <label><input type="checkbox" id="s-exp"> تاريخ الانتهاء</label>
-        <label><input type="checkbox" id="s-batch"> رقم الدفعة</label>
+        <label><input type="checkbox" id="s-name"> <span data-i18n="showName">Name</span></label>
+        <label><input type="checkbox" id="s-price"> <span data-i18n="fPrice">Price</span></label>
+        <label><input type="checkbox" id="s-code"> <span data-i18n="showCode">Number under the barcode</span></label>
+        <label><input type="checkbox" id="s-exp"> <span data-i18n="fExp">Expiry date</span></label>
+        <label><input type="checkbox" id="s-batch"> <span data-i18n="fBatch">Batch number</span></label>
       </div>
-      <label class="f" style="margin-top:12px">حجم الخط: <span id="font-val"></span>
+      <label class="f" style="margin-top:12px"><span><span data-i18n="fontSize">Font size:</span> <span id="font-val"></span></span>
         <input type="range" id="s-font" min="70" max="140" step="5">
       </label>
 
       <hr class="divider">
-      <h2>الترقيم التلقائي</h2>
+      <h2 data-i18n="autoNumbering">Automatic numbering</h2>
       <div class="fields">
-        <label class="f">الرقم التالي
+        <label class="f"><span data-i18n="nextNumber">Next number</span>
           <input type="number" id="s-next" min="1" step="1" class="mono">
         </label>
       </div>
-      <p class="sub" style="margin:8px 0 0">في Code 128 وQR يتكوّن الرمز تلقائياً من اختصار اسم المنتج ورقم تسلسلي فريد. أما EAN-13 فيقبل الأرقام فقط ويستخدم نطاقاً داخلياً يبدأ بـ 200.</p>
+      <p class="sub" style="margin:8px 0 0" data-i18n="autoNumberingHint">In Code 128 and QR, the code is built automatically from a short form of the product name and a unique serial number. EAN-13 accepts digits only and uses an internal range starting with 200.</p>
     </section>
 
     <!-- preview + print -->
     <section class="panel" aria-labelledby="h-prev">
-      <h2 id="h-prev">المعاينة والطباعة</h2>
+      <h2 id="h-prev" data-i18n="previewPrint">Preview and print</h2>
       <div class="size-row">
-        <label class="f">مقاس الملصق
+        <label class="f"><span data-i18n="labelSize">Label size</span>
           <select id="s-preset"></select>
         </label>
-        <label class="f">العرض (ملم)
+        <label class="f"><span data-i18n="widthMm">Width (mm)</span>
           <input type="number" id="s-w" min="10" max="200" step="1" class="mono">
         </label>
-        <label class="f">الارتفاع (ملم)
+        <label class="f"><span data-i18n="heightMm">Height (mm)</span>
           <input type="number" id="s-h" min="8" max="300" step="1" class="mono">
         </label>
       </div>
@@ -258,38 +280,54 @@ td input.copies{width:64px;padding:4px 6px}
       </div>
       <div class="status" id="status" role="status"></div>
       <div class="print-bar">
-        <label class="f">عدد النسخ
+        <label class="f"><span data-i18n="copies">Copies</span>
           <input type="number" id="p-copies" min="1" max="999" value="1" class="mono">
         </label>
-        <label class="f">دقة الطابعة
+        <label class="f"><span data-i18n="printerDpi">Printer resolution</span>
           <select id="s-dpi"><option value="203">203 DPI</option><option value="300">300 DPI</option></select>
         </label>
-        <label class="f" style="width:150px">اتجاه الطباعة
-          <select id="s-rot"><option value="0">عادي</option><option value="90">تدوير 90° يميناً</option><option value="270">تدوير 90° يساراً</option><option value="-1">حسب ورق الطابعة</option></select>
+        <label class="f" style="width:150px"><span data-i18n="printDir">Print orientation</span>
+          <select id="s-rot"><option value="0" data-i18n="rotNormal">Normal</option><option value="90" data-i18n="rot90">Rotate 90° right</option><option value="270" data-i18n="rot270">Rotate 90° left</option><option value="-1" data-i18n="rotAuto">Match printer paper</option></select>
         </label>
-        <button type="button" class="primary" id="btn-print">طباعة</button>
-        <button type="button" id="btn-test">ملصق اختبار</button>
+        <button type="button" class="primary" id="btn-print" data-i18n="printBtn">Print</button>
+        <button type="button" id="btn-test" data-i18n="testBtn">Test label</button>
       </div>
       <div class="panel" id="billing-panel" style="margin-top:12px;padding:12px" aria-live="polite">
         <div class="row" style="justify-content:space-between">
-          <strong id="billing-title">الخطة المجانية</strong>
+          <strong id="billing-title">Free plan</strong>
           <span class="chip" id="billing-chip">20/20</span>
         </div>
-        <p class="sub" id="billing-status" style="margin:8px 0">يمكنك طباعة أول 20 ملصق مجاناً، ثم يلزم فتح التطبيق بمبلغ 5$.</p>
+        <p class="sub" id="billing-status" style="margin:8px 0"></p>
         <div class="row" id="unlock-controls">
-          <button type="button" id="btn-unlock" class="primary">شراء لمرة واحدة (5$)</button>
+          <button type="button" id="btn-unlock" class="primary">One-time purchase (5$)</button>
         </div>
+        <p class="sub" id="license-info" style="margin:8px 0" hidden></p>
+        <details id="transfer-box" style="margin-top:8px">
+          <summary id="transfer-summary">Bought the license on another device? Move it here</summary>
+          <p class="sub" id="transfer-help" style="margin:8px 0"></p>
+          <div class="row">
+            <label class="f" style="flex:1"><span id="transfer-email-label">Purchase email</span><input type="email" id="transfer-email" autocomplete="email" maxlength="254" dir="ltr"></label>
+            <button type="button" id="btn-transfer-request">Send verification code</button>
+          </div>
+          <div id="transfer-code-step" hidden>
+            <p class="sub" id="transfer-warning" style="margin:8px 0;color:var(--bad)"></p>
+            <div class="row">
+              <label class="f" style="flex:1"><span id="transfer-code-label">Verification code (8 digits)</span><input type="text" id="transfer-code" inputmode="numeric" autocomplete="one-time-code" maxlength="9" class="mono"></label>
+              <button type="button" id="btn-transfer-confirm" class="primary">Confirm transfer</button>
+            </div>
+          </div>
+          <p class="sub" id="transfer-status" role="status" style="margin:8px 0"></p>
+        </details>
       </div>
       <hr class="divider">
       <details>
-        <summary>ضبط Xprinter أول مرة</summary>
+        <summary data-i18n="xpTitle">First-time Xprinter setup</summary>
         <ol>
-          <li>في ويندوز افتح <b>الأجهزة والطابعات</b>، ثم انقر بالزر الأيمن على Xprinter واختر <b>تفضيلات الطباعة</b>.</li>
-          <li>من <b>Page Setup</b> اضغط <b>New</b> وأنشئ ورقة بنفس عرض وارتفاع الملصق بالملم (مثلاً 40 × 30)، واحفظها.</li>
-          <li>اضغط زر <b>طباعة</b> هنا. في نافذة الطباعة اختر Xprinter، ثم من <b>المزيد من الإعدادات</b>: حجم الورق = الورقة التي أنشأتها، الهوامش = <b>بلا</b>، المقياس = <b>افتراضي</b> أو 100، وأزل علامة <b>الرؤوس والتذييلات</b>.</li>
-          <li>اطبع <b>ملصق اختبار</b>: يجب أن يقع الإطار على حواف الملصق تماماً. إن كان مزاحاً فشغّل معايرة الورق في الطابعة (اضغط زر FEED مطولاً حتى تومض الإشارة).</li>
-          <li>إذا خرج الملصق بالطول بدل العرض (مدوّراً أو مقطوعاً)، اختر <b>اتجاه الطباعة: تدوير 90°</b> بجانب زر الطباعة واطبع ملصق اختبار. إن بقي مدوّراً بالاتجاه المعاكس فاختر التدوير الآخر. ويمكن بدلاً من ذلك تغيير <b>Orientation</b> في تفضيلات طباعة Xprinter.</li>
-          <li>لكل مقاس جديد كرر الخطوة 2 مرة واحدة فقط، ويتذكر المتصفح إعداداتك بعدها.</li>
+          <li data-i18n-html="xp1"></li>
+          <li data-i18n-html="xp2"></li>
+          <li data-i18n-html="xp3"></li>
+          <li data-i18n-html="xp4"></li>
+          <li data-i18n-html="xp5"></li>
         </ol>
       </details>
     </section>
@@ -298,27 +336,74 @@ td input.copies{width:64px;padding:4px 6px}
   <!-- register -->
   <section class="panel" aria-labelledby="h-reg">
     <div class="reg-head">
-      <h2 id="h-reg">المنتجات المحفوظة <span class="chip" id="reg-count">0</span></h2>
+      <h2 id="h-reg"><span data-i18n="savedProducts">Saved products</span> <span class="chip" id="reg-count">0</span></h2>
       <div class="reg-tools">
-        <input type="search" id="reg-search" placeholder="بحث بالاسم أو الرقم">
-        <button type="button" class="primary" id="btn-print-sel" disabled>طباعة المحدد</button>
-        <button type="button" id="btn-export">تصدير Excel</button>
-        <button type="button" id="btn-import">استيراد Excel</button>
+        <input type="search" id="reg-search" placeholder="Search by name or code" data-i18n-attr="placeholder:searchPh;aria-label:searchPh">
+        <button type="button" class="primary" id="btn-print-sel" disabled>Print selected</button>
+        <button type="button" id="btn-export" data-i18n="exportBtn">Export Excel</button>
+        <button type="button" id="btn-import" data-i18n="importBtn">Import Excel</button>
         <input type="file" id="file-import" accept=".xlsx,.xls,.csv" hidden>
       </div>
     </div>
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th><input type="checkbox" id="sel-all" aria-label="تحديد الكل"></th>
-          <th>الرمز</th><th>الاسم</th><th>السعر</th><th>الانتهاء</th><th>الدفعة</th><th>النسخ</th><th></th>
+          <th><input type="checkbox" id="sel-all" aria-label="Select all" data-i18n-attr="aria-label:selectAll"></th>
+          <th data-i18n="thCode">Code</th><th data-i18n="showName">Name</th><th data-i18n="fPrice">Price</th><th data-i18n="thExp">Expiry</th><th data-i18n="thBatch">Batch</th><th data-i18n="copies">Copies</th><th></th>
         </tr></thead>
         <tbody id="reg-body"></tbody>
       </table>
     </div>
-    <p class="sub" style="margin:10px 0 0">أدخل الرموز نفسها في نظام المبيعات (يمكنك تصديرها إلى Excel) حتى يتعرف قارئ الباركود على المنتج عند البيع. تُحفظ القائمة في هذا المتصفح على هذه الحاسبة، فصدّرها إلى Excel بين حين وآخر كنسخة احتياطية.</p>
+    <p class="sub" style="margin:10px 0 0" data-i18n="regHint">Enter the same codes in your sales system (you can export them to Excel) so the barcode scanner recognizes the product at checkout. The list is saved in this browser on this computer, so export it to Excel from time to time as a backup.</p>
   </section>
 </div>
+
+<dialog id="buy-dialog" aria-labelledby="buy-title">
+  <div class="dlg-head">
+    <h2 id="buy-title" data-i18n="helpTitle">Buying and managing your license</h2>
+    <button type="button" class="dlg-x" id="buy-close-x" aria-label="Close" data-i18n-attr="aria-label:closeBtn">×</button>
+  </div>
+  <div class="dlg-body">
+    <p data-i18n="helpIntro"></p>
+    <section aria-labelledby="help-a">
+      <h3 id="help-a" data-i18n="helpA">Purchase and Activation</h3>
+      <ol>
+        <li data-i18n="helpA1"></li><li data-i18n="helpA2"></li><li data-i18n="helpA3"></li>
+        <li data-i18n="helpA4"></li><li data-i18n="helpA5"></li>
+      </ol>
+      <p class="note warn" data-i18n="helpA6"></p>
+    </section>
+    <section aria-labelledby="help-b">
+      <h3 id="help-b" data-i18n="helpB">Keep Your Purchase Email</h3>
+      <p class="note" data-i18n="helpB0"></p>
+      <ul><li data-i18n="helpB1"></li><li data-i18n="helpB2"></li><li data-i18n="helpB3"></li></ul>
+    </section>
+    <section aria-labelledby="help-c">
+      <h3 id="help-c" data-i18n="helpC">Transfer to Another Device</h3>
+      <p data-i18n="helpC0"></p>
+      <ol>
+        <li data-i18n="helpC1"></li><li data-i18n="helpC2"></li><li data-i18n="helpC3"></li>
+        <li data-i18n="helpC4"></li><li data-i18n="helpC5"></li>
+      </ol>
+      <p class="note warn" data-i18n="helpC6"></p>
+    </section>
+    <section aria-labelledby="help-d">
+      <h3 id="help-d" data-i18n="helpD">Troubleshooting</h3>
+      <dl>
+        <dt data-i18n="helpD1t"></dt><dd data-i18n="helpD1"></dd>
+        <dt data-i18n="helpD2t"></dt><dd data-i18n="helpD2"></dd>
+        <dt data-i18n="helpD3t"></dt><dd data-i18n="helpD3"></dd>
+        <dt data-i18n="helpD4t"></dt><dd data-i18n="helpD4"></dd>
+        <dt data-i18n="helpD5t"></dt><dd data-i18n="helpD5"></dd>
+      </dl>
+      <p id="help-support"></p>
+    </section>
+  </div>
+  <div class="dlg-foot">
+    <button type="button" class="primary" id="buy-go" data-i18n="helpGo">Continue to purchase</button>
+    <button type="button" id="buy-close" data-i18n="closeBtn">Close</button>
+  </div>
+</dialog>
 
 <div id="print-root"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -2656,12 +2741,15 @@ var KEY='pharmacy-labels-v2';
 var PRESETS=[[25,15],[30,20],[38,25],[40,20],[40,25],[40,30],[50,25],[50,30],[58,30],[58,40],[60,40],[70,50],[80,50],[100,50],[100,100],[100,150]];
 var PX_PER_MM=96/25.4;
 var FREE_LABEL_LIMIT=20,UNLOCK_PRICE_USD=5;
+// Shown in the purchase help; must match TRANSFER_CODE_TTL_MS and TRANSFER_CODE_MAX_ATTEMPTS in server.js.
+var TRANSFER_CODE_MINUTES=10,TRANSFER_CODE_ATTEMPTS=5;
+var DEFAULT_LANG='en',RTL_LANGS=['ar','ur'],SUPPORTED_LANGS=['en','ar','zh','hi','es','fr','pt','ur','ru','ja','de'];
 
 var defaults={settings:{w:40,h:30,type:'CODE128',showName:true,showPrice:true,showCode:true,showExp:false,showBatch:false,
-  font:100,currency:'',next:1,eanNext:1,dpi:203,rot:0,theme:'system',lang:'ar'},
+  font:100,currency:'',next:1,eanNext:1,dpi:203,rot:0,theme:'system',lang:DEFAULT_LANG},
   products:[]};
 var state=load();
-var billing={available:false,printedCount:0,freeLimit:FREE_LABEL_LIMIT,unlocked:false};
+var billing={available:false,printedCount:0,freeLimit:FREE_LABEL_LIMIT,unlocked:false,license:null};
 var editingId=null;
 var draft={name:'',price:'',code:'',exp:'',batch:'',autoCode:true};
 
@@ -2671,6 +2759,7 @@ function load(){
     if(s&&s.settings){
       s.settings=Object.assign({},defaults.settings,s.settings);
       s.products=s.products||[];
+      if(SUPPORTED_LANGS.indexOf(s.settings.lang)<0)s.settings.lang=DEFAULT_LANG;
       delete s.billing;
       return s;
     }
@@ -2701,7 +2790,93 @@ var I18N={
     unlockFail:'تعذر بدء الشراء أو التحقق منه. حاول لاحقًا.',
     serviceUnavailable:'يلزم الاتصال بخادم التطبيق لتسجيل الملصقات والتحقق من الشراء.',
     unlockedTitle:'مفتوح',unlimited:'تم فتح الاستخدام غير المحدود.',
-    langLabel:'اللغة',themeLabel:'المظهر'},
+    licenseActive:'الترخيص فعّال على هذا الجهاز فقط. بريد الشراء: {email} · المرجع: {ref} · النقل المتبقي: {left} من {limit}.',
+    licenseInactive:'الترخيص المرتبط بهذا الجهاز غير فعّال (مسترد أو عليه اعتراض). المرجع: {ref}.',
+    licenseMoved:'نُقل الترخيص الذي كان على هذا الجهاز إلى جهاز آخر.',
+    transferSummary:'اشتريت الترخيص على جهاز آخر؟ انقله إلى هذا الجهاز',
+    transferHelp:'أدخل البريد المستخدم في الشراء، وسنرسل إليه رمز تحقق إن كان الترخيص قابلاً للنقل. يُسمح بنقل الترخيص مرة واحدة فقط.',
+    transferEmailLabel:'البريد المستخدم في الشراء',transferRequestBtn:'إرسال رمز التحقق',
+    transferWarning:'تنبيه: النقل يعطّل الترخيص على الجهاز السابق ويستهلك فرصة النقل الوحيدة.',
+    transferCodeLabel:'رمز التحقق (8 أرقام)',transferConfirmBtn:'تأكيد النقل',
+    transferSent:'إن كان هذا البريد مرتبطاً بترخيص قابل للنقل فسيصلك رمز صالح لمدة {minutes} دقائق. تحقق أيضاً من البريد غير المرغوب.',
+    transferConfirmPrompt:'سيُعطَّل الترخيص على الجهاز السابق وتُستهلك فرصة النقل الوحيدة. هل تريد المتابعة؟',
+    transferDone:'تم نقل الترخيص إلى هذا الجهاز وتعطيله على الجهاز السابق.',
+    err_invalid_email:'أدخل بريداً إلكترونياً صحيحاً.',
+    err_email_unavailable:'خدمة البريد غير مهيأة حالياً، لذلك لا يمكن نقل الترخيص الآن.',
+    err_rate_limited:'محاولات كثيرة. انتظر ساعة ثم حاول مجدداً.',
+    err_already_licensed:'هذا الجهاز مفعّل بالفعل.',
+    err_invalid_code:'رمز التحقق يتكون من 8 أرقام.',
+    err_verification_failed:'الرمز غير صحيح أو انتهت صلاحيته أو استُخدم سابقاً. اطلب رمزاً جديداً.',
+    err_transfer_used:'استُخدمت فرصة النقل الوحيدة لهذا الترخيص. تواصل مع الدعم واذكر مرجع الطلب.',
+    err_license_unavailable:'هذا الترخيص غير فعّال (مسترد أو عليه اعتراض) ولا يمكن نقله.',
+    transferFail:'تعذر إكمال الطلب. حاول لاحقاً.',
+    langLabel:'اللغة',themeLabel:'المظهر',
+    appTitle:'ملصقات المنتجات',appTagline:'أنشئ واطبع ملصقات باركود و QR للمنتجات بمختلف أنواعها',
+    themeSystem:'حسب الجهاز',themeLight:'نهاري',themeDark:'ليلي',
+    newProduct:'منتج جديد',fName:'اسم المنتج',fPrice:'السعر',fCurrency:'العملة',currencyPh:'مثال: د.ع',
+    codeLabel:'رمز الباركود',newCodeBtn:'رقم جديد',newCodeTitle:'توليد رقم تسلسلي جديد',
+    fExp:'تاريخ الانتهاء',fExpHint:'(اختياري، مثل الأغذية والأدوية)',fBatch:'رقم الدفعة',optional:'(اختياري)',
+    saveBtn:'حفظ المنتج',saveEditBtn:'حفظ التعديل',editingTitle:'تعديل: {name}',
+    codeType:'نوع الرمز',onLabel:'ما يظهر على الملصق',showName:'الاسم',showCode:'الرقم تحت الباركود',fontSize:'حجم الخط:',
+    autoNumbering:'الترقيم التلقائي',nextNumber:'الرقم التالي',
+    autoNumberingHint:'في Code 128 وQR يتكوّن الرمز تلقائياً من اختصار اسم المنتج ورقم تسلسلي فريد. أما EAN-13 فيقبل الأرقام فقط ويستخدم نطاقاً داخلياً يبدأ بـ 200.',
+    previewPrint:'المعاينة والطباعة',labelSize:'مقاس الملصق',widthMm:'العرض (ملم)',heightMm:'الارتفاع (ملم)',
+    presetMm:'{w} × {h} ملم',presetCustom:'مقاس مخصص',
+    copies:'عدد النسخ',printerDpi:'دقة الطابعة',printDir:'اتجاه الطباعة',
+    rotNormal:'عادي',rot90:'تدوير 90° يميناً',rot270:'تدوير 90° يساراً',rotAuto:'حسب ورق الطابعة',
+    printBtn:'طباعة',testBtn:'ملصق اختبار',testLabelName:'ملصق اختبار {size}',sampleName:'زيت الزيتون',
+    xpTitle:'ضبط Xprinter أول مرة',
+    xp1:'في ويندوز افتح <b>الأجهزة والطابعات</b>، ثم انقر بالزر الأيمن على Xprinter واختر <b>تفضيلات الطباعة</b>.',
+    xp2:'من <b>Page Setup</b> اضغط <b>New</b> وأنشئ ورقة بنفس عرض وارتفاع الملصق بالملم (مثلاً 40 × 30)، واحفظها.',
+    xp3:'اضغط زر <b>طباعة</b> هنا. في نافذة الطباعة اختر Xprinter، ثم من <b>المزيد من الإعدادات</b>: حجم الورق = الورقة التي أنشأتها، الهوامش = <b>بلا</b>، المقياس = <b>افتراضي</b> أو 100، وأزل علامة <b>الرؤوس والتذييلات</b>.',
+    xp4:'اطبع <b>ملصق اختبار</b>: يجب أن يقع الإطار على حواف الملصق تماماً. إن كان مزاحاً فشغّل معايرة الورق في الطابعة (اضغط زر FEED مطولاً حتى تومض الإشارة).',
+    xp5:'لكل مقاس جديد كرر الخطوة 2 مرة واحدة فقط، ويتذكر المتصفح إعداداتك بعدها.',
+    savedProducts:'المنتجات المحفوظة',searchPh:'بحث بالاسم أو الرقم',printSelected:'طباعة المحدد',printSelectedN:'طباعة المحدد ({n})',
+    exportBtn:'تصدير Excel',importBtn:'استيراد Excel',selectAll:'تحديد الكل',selectRow:'تحديد',
+    thCode:'الرمز',thExp:'الانتهاء',thBatch:'الدفعة',
+    regHint:'أدخل الرموز نفسها في نظام المبيعات (يمكنك تصديرها إلى Excel) حتى يتعرف قارئ الباركود على المنتج عند البيع. تُحفظ القائمة في هذا المتصفح على هذه الحاسبة، فصدّرها إلى Excel بين حين وآخر كنسخة احتياطية.',
+    regEmpty:'لا توجد منتجات محفوظة بعد. املأ النموذج واضغط «حفظ المنتج»، أو استورد قائمة من Excel.',regNoResults:'لا نتائج لهذا البحث.',
+    editBtn:'تعديل',deleteBtn:'حذف',confirmDelete:'تأكيد الحذف',
+    valEmpty:'اكتب رمزاً أو اضغط «رقم جديد».',valEanDigits:'EAN-13 يقبل 12 أو 13 رقماً فقط، بدون حروف.',
+    valEanCheck:'الرقم الأخير (رقم التحقق) غير صحيح. الصحيح: {d}',
+    valCode128:'Code 128 يقبل الحروف الإنجليزية والأرقام والرموز فقط. استخدم QR إن أردت حروفاً عربية.',
+    qrTooSmall:'مربعات QR صغيرة جداً ({mm} ملم). كبّر الملصق أو قصّر الرمز.',
+    barsTooThin:'خطوط الباركود رفيعة جداً ({mm} ملم) وقد لا يقرأها الجهاز. اختر ملصقاً أعرض أو رمزاً أقصر.',
+    sizeOkQr:'حجم مربع QR {mm} ملم{dots}، مناسب للقراءة.',sizeOkBar:'عرض أرفع خط {mm} ملم{dots}، مناسب للقراءة.',dotsNote:' ({n} نقطة طباعة)',
+    noValidLabel:'لا يوجد ملصق صالح للطباعة',codeInUse:'الرمز مستخدم لمنتج آخر',
+    productUpdated:'تم تحديث المنتج',productSaved:'تم حفظ المنتج',productDeleted:'تم حذف المنتج',noProductsExport:'لا توجد منتجات للتصدير',
+    importDone:'تمت إضافة {added} منتج',importSkipped:'، وتجاهل {n} برموز مكررة',
+    importFail:'تعذرت قراءة الملف. تأكد أنه Excel أو CSV وفيه عمود «اسم المنتج».',
+    rotToastAuto:'اختر في نافذة الطباعة حجم الورق والتخطيط (عمودي أو أفقي)',rotToastOn:'سيُطبع الملصق مدوّراً، اطبع ملصق اختبار للتأكد',rotToastOff:'الطباعة بمقاس الملصق',
+    buyBtn:'شراء الترخيص',helpTitle:'شراء الترخيص وإدارته',closeBtn:'إغلاق',helpGo:'المتابعة إلى الشراء',
+    helpIntro:'أول {limit} ملصق مجانية، وبعدها يفتح دفعٌ واحد بقيمة {price}$ الطباعة غير المحدودة.',
+    helpA:'الشراء والتفعيل',
+    helpA1:'اضغط «شراء لمرة واحدة ({price}$)» في قسم المعاينة والطباعة، أو «المتابعة إلى الشراء» أسفل هذه النافذة.',
+    helpA2:'تنتقل إلى صفحة الدفع الآمنة من Stripe. أدخل بريدك الإلكتروني وبيانات الدفع هناك؛ التطبيق لا يرى بيانات بطاقتك.',
+    helpA3:'بعد إتمام الدفع يعيدك Stripe إلى التطبيق، فيتحقق خادم التطبيق من Stripe أن الدفع نجح فعلاً، وعندها فقط يُفعَّل الترخيص على هذا الجهاز.',
+    helpA4:'فتح صفحة الدفع أو العودة منها لا يفعّل شيئاً وحده. إن بقي التطبيق على الخطة المجانية بعد الدفع فانتظر دقيقة ثم أعد تحميل الصفحة.',
+    helpA5:'بعد تأكيد الدفع تُرسل رسالة تأكيد فيها مرجع الطلب (PL-…) إلى البريد الذي أدخلته في صفحة الدفع.',
+    helpA6:'الترخيص مرتبط بهذا المتصفح على هذا الجهاز. استخدم المتصفح نفسه ولا تمسح ملفات تعريف الارتباط أو بيانات هذا الموقع، وإلا فلن يُتعرَّف على الجهاز وستحتاج إلى النقل الموضح أدناه.',
+    helpB:'احتفظ ببريد الشراء',
+    helpB0:'حافظ على إمكانية الدخول إلى البريد الإلكتروني نفسه الذي أدخلته عند الدفع، واحتفظ برسالة التأكيد.',
+    helpB1:'نقل الترخيص إلى جهاز آخر يحتاج رمز تحقق يُرسل إلى هذا البريد. يجب أن تستطيع فتح صندوق البريد؛ معرفة العنوان وحدها لا تكفي.',
+    helpB2:'لا يمكن تغيير بريد الشراء من داخل التطبيق.',
+    helpB3:'احتفظ بمرجع الطلب، فالدعم يحتاجه للتعرف على عملية الشراء.',
+    helpC:'النقل إلى جهاز آخر',
+    helpC0:'يعمل الترخيص على جهاز واحد في كل مرة، ولا يمكن استخدامه على عدة أجهزة في الوقت نفسه.',
+    helpC1:'على الجهاز الجديد افتح التطبيق في المتصفح الذي ستستخدمه، ومن قسم المعاينة والطباعة افتح «اشتريت الترخيص على جهاز آخر؟ انقله إلى هذا الجهاز». (يظهر فقط إذا لم يكن الجهاز مفعّلاً.)',
+    helpC2:'أدخل بريد الشراء واضغط «إرسال رمز التحقق».',
+    helpC3:'أدخل الرمز المكوّن من 8 أرقام الوارد في الرسالة على الجهاز الجديد نفسه خلال {minutes} دقائق. كل رمز يُستخدم مرة واحدة، ويتوقف بعد {attempts} محاولات خاطئة.',
+    helpC4:'اضغط «تأكيد النقل» ووافق على التنبيه.',
+    helpC5:'ينتقل الترخيص فوراً إلى الجهاز الجديد ويتوقف على الجهاز السابق.',
+    helpC6:'يُسمح بنقل واحد فقط لكل ترخيص. بعد استخدامه لا يمكن نقل الترخيص مرة أخرى من التطبيق.',
+    helpD:'حل المشكلات',
+    helpD1t:'لم تصل رسالة تأكيد الشراء',helpD1:'تحقق من مجلد البريد غير المرغوب. يعيد الخادم محاولة الإرسال تلقائياً لبضع ساعات. الترخيص يعمل على جهازك حتى لو تأخرت الرسالة، ومرجع الطلب يظهر في تفاصيل الترخيص على الجهاز المفعّل.',
+    helpD2t:'لم يصل رمز نقل الترخيص',helpD2:'تحقق من البريد غير المرغوب، وتأكد أنك كتبت البريد المستخدم في الدفع تماماً. لحماية الخصوصية يعرض التطبيق الرسالة نفسها سواء ارتبط البريد بترخيص أم لا. يمكنك طلب الرمز حتى 3 مرات في الساعة للبريد نفسه.',
+    helpD3t:'انتهت صلاحية الرمز أو رُفض',helpD3:'اطلب رمزاً جديداً واستخدم أحدث رسالة؛ الطلب الجديد يلغي الرموز السابقة على هذا الجهاز.',
+    helpD4t:'ربما استخدمت بريداً مختلفاً',helpD4:'على الجهاز الذي يحمل الترخيص تعرض تفاصيل الترخيص جزءاً من بريد الشراء (مثل pe***@e***.com). استخدم العنوان الكامل المطابق له.',
+    helpD5t:'رسالة «النقل غير متاح»',helpD5:'تظهر إذا استُخدم النقل الوحيد سابقاً، أو إذا استُرد المبلغ أو كان عليه اعتراض، أو إذا كان الخادم غير قادر على إرسال البريد. إن كان البريد مرتبطاً بشراء فستصلك رسالة توضح السبب.',
+    supportWithEmail:'تحتاج مساعدة؟ راسل {email} واذكر مرجع الطلب.',supportNoEmail:'تحتاج مساعدة؟ رُدّ على رسالة تأكيد الشراء واذكر مرجع الطلب.'},
   en:{saved:'Saved on this device',saveFailed:'Could not save in browser. Export to Excel as backup.',
     typeCode128:'Builds code from product name prefix + unique number; readable by most scanners.',
     typeEan:'EAN-13 must be digits only. Generated numbers are for internal use.',
@@ -2714,22 +2889,1006 @@ var I18N={
     unlockFail:'Could not start or verify purchase. Please try again later.',
     serviceUnavailable:'Connect to the app server to reserve labels and verify purchases.',
     unlockedTitle:'Unlocked',unlimited:'Unlimited labels enabled.',
-    langLabel:'Language',themeLabel:'Theme'}
+    licenseActive:'License active on this device only. Purchase email: {email} · Reference: {ref} · Transfers left: {left} of {limit}.',
+    licenseInactive:'The license linked to this device is not active (refunded or disputed). Reference: {ref}.',
+    licenseMoved:'The license that was on this device has been moved to another device.',
+    transferSummary:'Bought the license on another device? Move it here',
+    transferHelp:'Enter the email used for the purchase. If the license can be transferred, we will send a verification code to it. A license can be moved only once.',
+    transferEmailLabel:'Purchase email',transferRequestBtn:'Send verification code',
+    transferWarning:'Warning: transferring disables the license on the previous device and uses the only allowed transfer.',
+    transferCodeLabel:'Verification code (8 digits)',transferConfirmBtn:'Confirm transfer',
+    transferSent:'If this email belongs to a transferable license, a code valid for {minutes} minutes is on its way. Check your spam folder too.',
+    transferConfirmPrompt:'The previous device will lose the license and your only transfer will be used. Continue?',
+    transferDone:'License moved to this device and disabled on the previous one.',
+    err_invalid_email:'Enter a valid email address.',
+    err_email_unavailable:'Email delivery is not configured, so licenses cannot be transferred right now.',
+    err_rate_limited:'Too many attempts. Wait an hour and try again.',
+    err_already_licensed:'This device is already licensed.',
+    err_invalid_code:'The verification code has 8 digits.',
+    err_verification_failed:'The code is wrong, expired or already used. Request a new code.',
+    err_transfer_used:'The only transfer for this license has been used. Contact support with your order reference.',
+    err_license_unavailable:'This license is not active (refunded or disputed) and cannot be transferred.',
+    transferFail:'Could not complete the request. Please try again later.',
+    langLabel:'Language',themeLabel:'Theme',
+    appTitle:'Product Labels',appTagline:'Create and print barcode and QR labels for all kinds of products',
+    themeSystem:'System',themeLight:'Light',themeDark:'Dark',
+    newProduct:'New product',fName:'Product name',fPrice:'Price',fCurrency:'Currency',currencyPh:'e.g. USD',
+    codeLabel:'Barcode value',newCodeBtn:'New code',newCodeTitle:'Generate a new serial number',
+    fExp:'Expiry date',fExpHint:'(optional, e.g. food and medicine)',fBatch:'Batch number',optional:'(optional)',
+    saveBtn:'Save product',saveEditBtn:'Save changes',editingTitle:'Editing: {name}',
+    codeType:'Code type',onLabel:'Shown on the label',showName:'Name',showCode:'Number under the barcode',fontSize:'Font size:',
+    autoNumbering:'Automatic numbering',nextNumber:'Next number',
+    autoNumberingHint:'In Code 128 and QR, the code is built automatically from a short form of the product name and a unique serial number. EAN-13 accepts digits only and uses an internal range starting with 200.',
+    previewPrint:'Preview and print',labelSize:'Label size',widthMm:'Width (mm)',heightMm:'Height (mm)',
+    presetMm:'{w} × {h} mm',presetCustom:'Custom size',
+    copies:'Copies',printerDpi:'Printer resolution',printDir:'Print orientation',
+    rotNormal:'Normal',rot90:'Rotate 90° right',rot270:'Rotate 90° left',rotAuto:'Match printer paper',
+    printBtn:'Print',testBtn:'Test label',testLabelName:'Test label {size}',sampleName:'Olive oil',
+    xpTitle:'First-time Xprinter setup',
+    xp1:'In Windows, open <b>Devices and Printers</b>, right-click Xprinter and choose <b>Printing preferences</b>.',
+    xp2:'In <b>Page Setup</b>, click <b>New</b> and create a paper with the same width and height as the label in mm (for example 40 × 30), then save it.',
+    xp3:'Click <b>Print</b> here. In the print dialog choose Xprinter, then under <b>More settings</b> set Paper size to the paper you created, Margins to <b>None</b>, Scale to <b>Default</b> or 100, and uncheck <b>Headers and footers</b>.',
+    xp4:'Print a <b>Test label</b>: the frame should sit exactly on the label edges. If it is shifted, run the printer\'s paper calibration (hold the FEED button until the light blinks).',
+    xp5:'Repeat step 2 only once for each new label size; the browser remembers your settings afterwards.',
+    savedProducts:'Saved products',searchPh:'Search by name or code',printSelected:'Print selected',printSelectedN:'Print selected ({n})',
+    exportBtn:'Export Excel',importBtn:'Import Excel',selectAll:'Select all',selectRow:'Select',
+    thCode:'Code',thExp:'Expiry',thBatch:'Batch',
+    regHint:'Enter the same codes in your sales system (you can export them to Excel) so the barcode scanner recognizes the product at checkout. The list is saved in this browser on this computer, so export it to Excel from time to time as a backup.',
+    regEmpty:'No saved products yet. Fill in the form and click "Save product", or import a list from Excel.',regNoResults:'No results for this search.',
+    editBtn:'Edit',deleteBtn:'Delete',confirmDelete:'Confirm delete',
+    valEmpty:'Type a code or click "New code".',valEanDigits:'EAN-13 accepts only 12 or 13 digits, no letters.',
+    valEanCheck:'The last digit (check digit) is wrong. The correct one is: {d}',
+    valCode128:'Code 128 accepts only English letters, digits and symbols. Use QR for Arabic text.',
+    qrTooSmall:'QR modules are too small ({mm} mm). Use a bigger label or a shorter code.',
+    barsTooThin:'Barcode bars are too thin ({mm} mm) and may not scan. Choose a wider label or a shorter code.',
+    sizeOkQr:'QR module size {mm} mm{dots}, good for scanning.',sizeOkBar:'Narrowest bar {mm} mm{dots}, good for scanning.',dotsNote:' ({n} printer dots)',
+    noValidLabel:'No valid label to print',codeInUse:'This code is used by another product',
+    productUpdated:'Product updated',productSaved:'Product saved',productDeleted:'Product deleted',noProductsExport:'No products to export',
+    importDone:'Added {added} products',importSkipped:', skipped {n} with duplicate codes',
+    importFail:'Could not read the file. Make sure it is Excel or CSV with a "name" (or «اسم المنتج») column.',
+    rotToastAuto:'Choose the paper size and layout (portrait or landscape) in the print dialog',rotToastOn:'The label will print rotated; print a test label to check',rotToastOff:'Printing at label size',
+    buyBtn:'Buy / Purchase',helpTitle:'Buying and managing your license',closeBtn:'Close',helpGo:'Continue to purchase',
+    helpIntro:'The first {limit} labels are free. After that, a one-time payment of {price}$ unlocks unlimited printing.',
+    helpA:'Purchase and Activation',
+    helpA1:'Click "One-time purchase ({price}$)" in the Preview and print section, or "Continue to purchase" at the bottom of this window.',
+    helpA2:'You are taken to the secure Stripe Checkout page. Enter your email address and payment details there; the app never sees your card details.',
+    helpA3:'When the payment is complete, Stripe sends you back to the app. The app server then checks with Stripe that the payment succeeded, and only then activates the license on this device.',
+    helpA4:'Opening the checkout page or coming back from it does not activate anything by itself. If the app still shows the free plan after you paid, wait a minute and reload the page.',
+    helpA5:'Once the payment is confirmed, a confirmation email with your order reference (PL-…) is sent to the email you entered at checkout.',
+    helpA6:'The license is linked to this browser on this device. Keep using the same browser and do not clear this site\'s cookies or site data; otherwise the device will no longer be recognized and you will need the transfer described below.',
+    helpB:'Keep Your Purchase Email',
+    helpB0:'Keep access to the same email address you entered at checkout, and keep the confirmation email.',
+    helpB1:'Moving the license to another device requires a verification code sent to that email. You must be able to open that inbox; knowing the address alone is not enough.',
+    helpB2:'The purchase email cannot be changed from inside the app.',
+    helpB3:'Keep your order reference; support needs it to identify your purchase.',
+    helpC:'Transfer to Another Device',
+    helpC0:'The license works on one device at a time. It cannot be used on several devices simultaneously.',
+    helpC1:'On the new device, open the app in the browser you will use. In Preview and print, open "Bought the license on another device? Move it here". (It appears only when the device is not already licensed.)',
+    helpC2:'Enter your purchase email and click "Send verification code".',
+    helpC3:'Enter the 8-digit code from the email on the same new device within {minutes} minutes. Each code works once and stops working after {attempts} wrong attempts.',
+    helpC4:'Click "Confirm transfer" and accept the warning.',
+    helpC5:'The license moves to the new device immediately and stops working on the previous device.',
+    helpC6:'Only one transfer is allowed per license. After it is used, the license cannot be moved again from the app.',
+    helpD:'Troubleshooting',
+    helpD1t:'The purchase confirmation email did not arrive',helpD1:'Check your spam or junk folder. The server retries sending automatically for a few hours. Your license works on this device even if the email is late, and the order reference is shown in the license details on the licensed device.',
+    helpD2t:'The transfer code did not arrive',helpD2:'Check spam, and make sure you typed exactly the email used at checkout. For privacy, the app shows the same message whether or not the email has a license. You can request a code up to 3 times per hour for the same email.',
+    helpD3t:'The code expired or was rejected',helpD3:'Request a new code and use the newest email; a new request cancels earlier codes on this device.',
+    helpD4t:'I may have used a different email',helpD4:'On the device that holds the license, the license details show part of the purchase email (for example pe***@e***.com). Use the full address that matches it.',
+    helpD5t:'"Transfer not available"',helpD5:'This happens when the single transfer was already used, when the payment was refunded or is under dispute, or when the server cannot send email. If the email belongs to a purchase, you will receive an email explaining the reason.',
+    supportWithEmail:'Need help? Contact {email} and include your order reference.',supportNoEmail:'Need help? Reply to your purchase confirmation email and include your order reference.'},
+  zh:{saved:'已保存在此设备上',saveFailed:'无法在浏览器中保存，请导出到 Excel 备份。',
+    typeCode128:'由商品名称缩写加唯一编号生成编码，大多数扫码枪都能识别。',
+    typeEan:'EAN-13 只能包含数字，无法包含商品名称。生成的编号仅供内部使用。',
+    typeQr:'在编码中原样保留商品名称并附加唯一编号，需要二维 (2D) 扫码枪。',
+    statusDup:'此编码已被另一个已保存的商品使用。点击「新编码」以避免重复。',
+    freePlan:'免费版',freeRemaining:'免费标签剩余 {n} / {limit} 张。',
+    lockedPlan:'免费额度已用完。支付 {price} 美元解锁应用以继续使用。',
+    unlockBtn:'一次性购买（{price} 美元）',unlockNeeded:'免费标签已用完。请购买解锁以继续。',
+    unlockSuccess:'购买已验证，应用已解锁。',
+    unlockFail:'无法开始或验证购买，请稍后再试。',
+    serviceUnavailable:'需要连接应用服务器才能登记标签并验证购买。',
+    unlockedTitle:'已解锁',unlimited:'已启用无限标签。',
+    licenseActive:'许可证仅在此设备上有效。购买邮箱：{email} · 订单号：{ref} · 剩余转移次数：{left} / {limit}。',
+    licenseInactive:'与此设备关联的许可证无效（已退款或存在争议）。订单号：{ref}。',
+    licenseMoved:'此设备上的许可证已转移到另一台设备。',
+    transferSummary:'在另一台设备上购买了许可证？将其转移到这里',
+    transferHelp:'输入购买时使用的邮箱。如果许可证可以转移，我们会向该邮箱发送验证码。许可证只能转移一次。',
+    transferEmailLabel:'购买邮箱',transferRequestBtn:'发送验证码',
+    transferWarning:'警告：转移会停用之前设备上的许可证，并用掉唯一的一次转移机会。',
+    transferCodeLabel:'验证码（8 位数字）',transferConfirmBtn:'确认转移',
+    transferSent:'如果此邮箱关联可转移的许可证，一个 {minutes} 分钟内有效的验证码正在发送中。也请检查垃圾邮件文件夹。',
+    transferConfirmPrompt:'之前的设备将失去许可证，你唯一的一次转移机会也将用掉。要继续吗？',
+    transferDone:'许可证已转移到此设备，并在之前的设备上停用。',
+    err_invalid_email:'请输入有效的邮箱地址。',
+    err_email_unavailable:'邮件服务尚未配置，因此暂时无法转移许可证。',
+    err_rate_limited:'尝试次数过多。请等待一小时后再试。',
+    err_already_licensed:'此设备已获得许可。',
+    err_invalid_code:'验证码由 8 位数字组成。',
+    err_verification_failed:'验证码错误、已过期或已被使用。请重新获取验证码。',
+    err_transfer_used:'此许可证唯一的一次转移机会已用完。请联系客服并提供订单号。',
+    err_license_unavailable:'此许可证无效（已退款或存在争议），无法转移。',
+    transferFail:'无法完成请求，请稍后再试。',
+    langLabel:'语言',themeLabel:'外观',
+    appTitle:'商品标签',appTagline:'为各类商品创建并打印条形码和二维码标签',
+    themeSystem:'跟随系统',themeLight:'浅色',themeDark:'深色',
+    newProduct:'新商品',fName:'商品名称',fPrice:'价格',fCurrency:'货币',currencyPh:'例如：元 或 ¥',
+    codeLabel:'条形码内容',newCodeBtn:'新编码',newCodeTitle:'生成新的流水号',
+    fExp:'有效期至',fExpHint:'（可选，例如食品和药品）',fBatch:'批号',optional:'（可选）',
+    saveBtn:'保存商品',saveEditBtn:'保存修改',editingTitle:'编辑：{name}',
+    codeType:'编码类型',onLabel:'标签上显示',showName:'名称',showCode:'条形码下方的数字',fontSize:'字号：',
+    autoNumbering:'自动编号',nextNumber:'下一个编号',
+    autoNumberingHint:'在 Code 128 和二维码中，编码会自动由商品名称缩写和唯一流水号组成。EAN-13 只接受数字，并使用以 200 开头的内部号段。',
+    previewPrint:'预览与打印',labelSize:'标签尺寸',widthMm:'宽度（毫米）',heightMm:'高度（毫米）',
+    presetMm:'{w} × {h} 毫米',presetCustom:'自定义尺寸',
+    copies:'份数',printerDpi:'打印机分辨率',printDir:'打印方向',
+    rotNormal:'正常',rot90:'向右旋转 90°',rot270:'向左旋转 90°',rotAuto:'按打印机纸张',
+    printBtn:'打印',testBtn:'测试标签',testLabelName:'测试标签 {size}',sampleName:'橄榄油',
+    xpTitle:'首次设置 Xprinter',
+    xp1:'在 Windows 中打开<b>设备和打印机</b>，右键点击 Xprinter，选择<b>打印首选项</b>。',
+    xp2:'在 <b>Page Setup</b> 中点击 <b>New</b>，新建一张与标签宽高相同（毫米，例如 40 × 30）的纸张并保存。',
+    xp3:'在这里点击<b>打印</b>。在打印对话框中选择 Xprinter，然后在<b>更多设置</b>中：纸张尺寸 = 你创建的纸张，边距 = <b>无</b>，缩放 = <b>默认</b>或 100，并取消勾选<b>页眉和页脚</b>。',
+    xp4:'打印一张<b>测试标签</b>：边框应正好落在标签边缘。如有偏移，请执行打印机的纸张校准（长按 FEED 键直到指示灯闪烁）。',
+    xp5:'每种新尺寸只需重复第 2 步一次，之后浏览器会记住你的设置。',
+    savedProducts:'已保存的商品',searchPh:'按名称或编码搜索',printSelected:'打印所选',printSelectedN:'打印所选（{n}）',
+    exportBtn:'导出 Excel',importBtn:'导入 Excel',selectAll:'全选',selectRow:'选择',
+    thCode:'编码',thExp:'有效期',thBatch:'批号',
+    regHint:'在你的销售系统中录入相同的编码（可导出到 Excel），以便收银时扫码枪能识别商品。列表保存在此电脑的浏览器中，请不时导出到 Excel 作为备份。',
+    regEmpty:'还没有已保存的商品。填写表单并点击「保存商品」，或从 Excel 导入列表。',regNoResults:'没有符合此搜索的结果。',
+    editBtn:'编辑',deleteBtn:'删除',confirmDelete:'确认删除',
+    valEmpty:'请输入编码或点击「新编码」。',valEanDigits:'EAN-13 只接受 12 或 13 位数字，不能有字母。',
+    valEanCheck:'最后一位（校验位）不正确。正确的是：{d}',
+    valCode128:'Code 128 只接受英文字母、数字和符号。如需中文等文字，请使用二维码。',
+    qrTooSmall:'二维码模块太小（{mm} 毫米）。请使用更大的标签或更短的编码。',
+    barsTooThin:'条形码线条太细（{mm} 毫米），可能无法识别。请选择更宽的标签或更短的编码。',
+    sizeOkQr:'二维码模块尺寸 {mm} 毫米{dots}，适合扫描。',sizeOkBar:'最细线条宽度 {mm} 毫米{dots}，适合扫描。',dotsNote:'（{n} 个打印点）',
+    noValidLabel:'没有可打印的有效标签',codeInUse:'此编码已被另一个商品使用',
+    productUpdated:'商品已更新',productSaved:'商品已保存',productDeleted:'商品已删除',noProductsExport:'没有可导出的商品',
+    importDone:'已添加 {added} 个商品',importSkipped:'，跳过 {n} 个重复编码',
+    importFail:'无法读取文件。请确认它是 Excel 或 CSV，并包含 “name”（或 «اسم المنتج»）列。',
+    rotToastAuto:'请在打印对话框中选择纸张尺寸和布局（纵向或横向）',rotToastOn:'标签将旋转打印，请先打印测试标签确认',rotToastOff:'按标签尺寸打印',
+    buyBtn:'购买',helpTitle:'购买和管理你的许可证',closeBtn:'关闭',helpGo:'继续购买',
+    helpIntro:'前 {limit} 张标签免费。之后，一次性支付 {price} 美元即可解锁无限打印。',
+    helpA:'购买与激活',
+    helpA1:'在「预览与打印」部分点击「一次性购买（{price} 美元）」，或点击本窗口底部的「继续购买」。',
+    helpA2:'你会被带到安全的 Stripe Checkout 付款页面。在那里输入你的邮箱和付款信息；本应用不会看到你的银行卡信息。',
+    helpA3:'付款完成后，Stripe 会把你送回应用。应用服务器随后向 Stripe 核实付款确实成功，只有这样才会在此设备上激活许可证。',
+    helpA4:'仅打开付款页面或从中返回并不会激活任何东西。如果付款后应用仍显示免费版，请等待一分钟后刷新页面。',
+    helpA5:'付款确认后，一封包含订单号（PL-…）的确认邮件会发送到你在付款时填写的邮箱。',
+    helpA6:'许可证与此设备上的这个浏览器绑定。请继续使用同一浏览器，不要清除本网站的 Cookie 或网站数据；否则此设备将无法被识别，你需要使用下面介绍的转移。',
+    helpB:'保留你的购买邮箱',
+    helpB0:'请保持对付款时所填邮箱的访问权限，并保留确认邮件。',
+    helpB1:'将许可证转移到另一台设备需要发送到该邮箱的验证码。你必须能打开该收件箱；仅知道邮箱地址是不够的。',
+    helpB2:'无法在应用内更改购买邮箱。',
+    helpB3:'请保留你的订单号；客服需要它来识别你的购买。',
+    helpC:'转移到另一台设备',
+    helpC0:'许可证同一时间只能在一台设备上使用，不能在多台设备上同时使用。',
+    helpC1:'在新设备上，用你将要使用的浏览器打开应用。在「预览与打印」中打开「在另一台设备上购买了许可证？将其转移到这里」。（仅当该设备尚未获得许可时才会显示。）',
+    helpC2:'输入你的购买邮箱并点击「发送验证码」。',
+    helpC3:'在 {minutes} 分钟内，在同一台新设备上输入邮件中的 8 位验证码。每个验证码只能使用一次，输错 {attempts} 次后即失效。',
+    helpC4:'点击「确认转移」并接受警告。',
+    helpC5:'许可证会立即转移到新设备，并在之前的设备上停止工作。',
+    helpC6:'每个许可证只允许转移一次。用完后，无法再从应用中转移该许可证。',
+    helpD:'故障排除',
+    helpD1t:'没有收到购买确认邮件',helpD1:'请检查垃圾邮件文件夹。服务器会在几个小时内自动重试发送。即使邮件延迟，你的许可证在此设备上也照常有效，订单号也会显示在已获许可设备的许可证详情中。',
+    helpD2t:'没有收到转移验证码',helpD2:'请检查垃圾邮件，并确认你输入的邮箱与付款时完全一致。为保护隐私，无论该邮箱是否关联许可证，应用都会显示相同的提示。同一邮箱每小时最多可请求 3 次验证码。',
+    helpD3t:'验证码已过期或被拒绝',helpD3:'请重新获取验证码并使用最新的邮件；新的请求会使此设备上之前的验证码失效。',
+    helpD4t:'我可能用了不同的邮箱',helpD4:'在持有许可证的设备上，许可证详情会显示购买邮箱的一部分（例如 pe***@e***.com）。请使用与之匹配的完整地址。',
+    helpD5t:'“转移不可用”',helpD5:'当唯一的一次转移已被使用、付款已退款或存在争议，或服务器无法发送邮件时，会出现此情况。如果该邮箱关联某笔购买，你会收到一封说明原因的邮件。',
+    supportWithEmail:'需要帮助？请联系 {email} 并提供你的订单号。',supportNoEmail:'需要帮助？请回复你的购买确认邮件并提供订单号。'},
+  hi:{saved:'इस डिवाइस पर सहेजा गया',saveFailed:'ब्राउज़र में सहेजा नहीं जा सका। बैकअप के लिए Excel में निर्यात करें।',
+    typeCode128:'उत्पाद के नाम के संक्षेप और एक अनोखे नंबर से कोड बनाता है; ज़्यादातर स्कैनर इसे पढ़ लेते हैं।',
+    typeEan:'EAN-13 में केवल अंक हो सकते हैं; इसमें उत्पाद का नाम नहीं जोड़ा जा सकता। बनाया गया नंबर केवल आंतरिक उपयोग के लिए है।',
+    typeQr:'कोड में उत्पाद का नाम जस का तस एक अनोखे नंबर के साथ रखता है; इसके लिए 2D स्कैनर चाहिए।',
+    statusDup:'यह कोड पहले से किसी दूसरे सहेजे गए उत्पाद में है। दोहराव से बचने के लिए "नया कोड" दबाएँ।',
+    freePlan:'मुफ़्त प्लान',freeRemaining:'{limit} में से {n} मुफ़्त लेबल बाकी हैं।',
+    lockedPlan:'मुफ़्त सीमा पूरी हो गई। जारी रखने के लिए ${price} (USD) में ऐप अनलॉक करें।',
+    unlockBtn:'एक बार की ख़रीद (${price} USD)',unlockNeeded:'मुफ़्त लेबल ख़त्म हो गए। जारी रखने के लिए अनलॉक ख़रीदें।',
+    unlockSuccess:'ख़रीद की पुष्टि हो गई। ऐप अनलॉक हो गया।',
+    unlockFail:'ख़रीद शुरू या सत्यापित नहीं हो सकी। कृपया बाद में फिर कोशिश करें।',
+    serviceUnavailable:'लेबल दर्ज करने और ख़रीद सत्यापित करने के लिए ऐप सर्वर से कनेक्ट होना ज़रूरी है।',
+    unlockedTitle:'अनलॉक',unlimited:'असीमित लेबल चालू हैं।',
+    licenseActive:'लाइसेंस केवल इसी डिवाइस पर सक्रिय है। ख़रीद ईमेल: {email} · संदर्भ: {ref} · बचे ट्रांसफ़र: {limit} में से {left}।',
+    licenseInactive:'इस डिवाइस से जुड़ा लाइसेंस सक्रिय नहीं है (रिफ़ंड हुआ या विवाद में है)। संदर्भ: {ref}।',
+    licenseMoved:'इस डिवाइस पर मौजूद लाइसेंस दूसरे डिवाइस पर ले जाया गया है।',
+    transferSummary:'लाइसेंस किसी दूसरे डिवाइस पर ख़रीदा था? उसे यहाँ ले आएँ',
+    transferHelp:'ख़रीद में इस्तेमाल किया गया ईमेल डालें। अगर लाइसेंस ट्रांसफ़र हो सकता है, तो हम उस पर एक सत्यापन कोड भेजेंगे। लाइसेंस केवल एक बार ट्रांसफ़र किया जा सकता है।',
+    transferEmailLabel:'ख़रीद ईमेल',transferRequestBtn:'सत्यापन कोड भेजें',
+    transferWarning:'चेतावनी: ट्रांसफ़र करने से पिछले डिवाइस पर लाइसेंस बंद हो जाता है और एकमात्र ट्रांसफ़र इस्तेमाल हो जाता है।',
+    transferCodeLabel:'सत्यापन कोड (8 अंक)',transferConfirmBtn:'ट्रांसफ़र की पुष्टि करें',
+    transferSent:'अगर यह ईमेल किसी ट्रांसफ़र योग्य लाइसेंस से जुड़ा है, तो {minutes} मिनट तक मान्य कोड भेजा जा रहा है। स्पैम फ़ोल्डर भी देखें।',
+    transferConfirmPrompt:'पिछले डिवाइस से लाइसेंस हट जाएगा और आपका एकमात्र ट्रांसफ़र इस्तेमाल हो जाएगा। जारी रखें?',
+    transferDone:'लाइसेंस इस डिवाइस पर आ गया है और पिछले डिवाइस पर बंद कर दिया गया है।',
+    err_invalid_email:'एक मान्य ईमेल पता डालें।',
+    err_email_unavailable:'ईमेल सेवा कॉन्फ़िगर नहीं है, इसलिए अभी लाइसेंस ट्रांसफ़र नहीं हो सकते।',
+    err_rate_limited:'बहुत ज़्यादा प्रयास। एक घंटा रुककर फिर कोशिश करें।',
+    err_already_licensed:'यह डिवाइस पहले से लाइसेंसशुदा है।',
+    err_invalid_code:'सत्यापन कोड 8 अंकों का होता है।',
+    err_verification_failed:'कोड गलत है, उसकी अवधि ख़त्म हो गई है या पहले इस्तेमाल हो चुका है। नया कोड मँगाएँ।',
+    err_transfer_used:'इस लाइसेंस का एकमात्र ट्रांसफ़र इस्तेमाल हो चुका है। अपने ऑर्डर संदर्भ के साथ सहायता से संपर्क करें।',
+    err_license_unavailable:'यह लाइसेंस सक्रिय नहीं है (रिफ़ंड हुआ या विवाद में है) और ट्रांसफ़र नहीं किया जा सकता।',
+    transferFail:'अनुरोध पूरा नहीं हो सका। कृपया बाद में फिर कोशिश करें।',
+    langLabel:'भाषा',themeLabel:'थीम',
+    appTitle:'उत्पाद लेबल',appTagline:'हर तरह के उत्पादों के लिए बारकोड और QR लेबल बनाएँ और प्रिंट करें',
+    themeSystem:'सिस्टम के अनुसार',themeLight:'हल्की',themeDark:'गहरी',
+    newProduct:'नया उत्पाद',fName:'उत्पाद का नाम',fPrice:'कीमत',fCurrency:'मुद्रा',currencyPh:'जैसे ₹ या INR',
+    codeLabel:'बारकोड मान',newCodeBtn:'नया कोड',newCodeTitle:'नया क्रमांक बनाएँ',
+    fExp:'समाप्ति तिथि',fExpHint:'(वैकल्पिक, जैसे खाद्य पदार्थ और दवाएँ)',fBatch:'बैच नंबर',optional:'(वैकल्पिक)',
+    saveBtn:'उत्पाद सहेजें',saveEditBtn:'बदलाव सहेजें',editingTitle:'संपादन: {name}',
+    codeType:'कोड का प्रकार',onLabel:'लेबल पर क्या दिखे',showName:'नाम',showCode:'बारकोड के नीचे नंबर',fontSize:'फ़ॉन्ट आकार:',
+    autoNumbering:'स्वचालित क्रमांकन',nextNumber:'अगला नंबर',
+    autoNumberingHint:'Code 128 और QR में कोड अपने आप उत्पाद के नाम के संक्षेप और एक अनोखे क्रमांक से बनता है। EAN-13 केवल अंक स्वीकार करता है और 200 से शुरू होने वाली आंतरिक श्रेणी इस्तेमाल करता है।',
+    previewPrint:'पूर्वावलोकन और प्रिंट',labelSize:'लेबल का आकार',widthMm:'चौड़ाई (मिमी)',heightMm:'ऊँचाई (मिमी)',
+    presetMm:'{w} × {h} मिमी',presetCustom:'कस्टम आकार',
+    copies:'प्रतियाँ',printerDpi:'प्रिंटर रिज़ॉल्यूशन',printDir:'प्रिंट दिशा',
+    rotNormal:'सामान्य',rot90:'90° दाएँ घुमाएँ',rot270:'90° बाएँ घुमाएँ',rotAuto:'प्रिंटर के काग़ज़ के अनुसार',
+    printBtn:'प्रिंट',testBtn:'टेस्ट लेबल',testLabelName:'टेस्ट लेबल {size}',sampleName:'जैतून का तेल',
+    xpTitle:'Xprinter की पहली बार सेटिंग',
+    xp1:'Windows में <b>डिवाइस और प्रिंटर</b> खोलें, Xprinter पर राइट-क्लिक करें और <b>प्रिंटिंग प्राथमिकताएँ</b> चुनें।',
+    xp2:'<b>Page Setup</b> में <b>New</b> दबाएँ और लेबल जितनी ही चौड़ाई और ऊँचाई (मिमी में, जैसे 40 × 30) का काग़ज़ बनाकर सहेजें।',
+    xp3:'यहाँ <b>प्रिंट</b> दबाएँ। प्रिंट डायलॉग में Xprinter चुनें, फिर <b>अधिक सेटिंग</b> में: काग़ज़ का आकार = आपका बनाया काग़ज़, मार्जिन = <b>कोई नहीं</b>, स्केल = <b>डिफ़ॉल्ट</b> या 100, और <b>हेडर और फ़ुटर</b> का निशान हटाएँ।',
+    xp4:'एक <b>टेस्ट लेबल</b> प्रिंट करें: फ़्रेम ठीक लेबल के किनारों पर होना चाहिए। अगर खिसका हो, तो प्रिंटर का काग़ज़ कैलिब्रेशन चलाएँ (FEED बटन को तब तक दबाए रखें जब तक लाइट न झपके)।',
+    xp5:'हर नए आकार के लिए चरण 2 केवल एक बार दोहराएँ; उसके बाद ब्राउज़र आपकी सेटिंग याद रखता है।',
+    savedProducts:'सहेजे गए उत्पाद',searchPh:'नाम या कोड से खोजें',printSelected:'चुने हुए प्रिंट करें',printSelectedN:'चुने हुए प्रिंट करें ({n})',
+    exportBtn:'Excel में निर्यात',importBtn:'Excel से आयात',selectAll:'सभी चुनें',selectRow:'चुनें',
+    thCode:'कोड',thExp:'समाप्ति',thBatch:'बैच',
+    regHint:'वही कोड अपने बिक्री सिस्टम में डालें (आप उन्हें Excel में निर्यात कर सकते हैं) ताकि बिक्री के समय बारकोड स्कैनर उत्पाद पहचान ले। सूची इसी कंप्यूटर के इस ब्राउज़र में सहेजी जाती है, इसलिए बैकअप के लिए समय-समय पर Excel में निर्यात करें।',
+    regEmpty:'अभी कोई उत्पाद सहेजा नहीं गया है। फ़ॉर्म भरें और "उत्पाद सहेजें" दबाएँ, या Excel से सूची आयात करें।',regNoResults:'इस खोज के लिए कोई परिणाम नहीं।',
+    editBtn:'संपादित करें',deleteBtn:'हटाएँ',confirmDelete:'हटाने की पुष्टि करें',
+    valEmpty:'कोड लिखें या "नया कोड" दबाएँ।',valEanDigits:'EAN-13 केवल 12 या 13 अंक स्वीकार करता है, अक्षर नहीं।',
+    valEanCheck:'अंतिम अंक (चेक अंक) गलत है। सही अंक है: {d}',
+    valCode128:'Code 128 केवल अंग्रेज़ी अक्षर, अंक और चिह्न स्वीकार करता है। हिंदी जैसे अक्षरों के लिए QR इस्तेमाल करें।',
+    qrTooSmall:'QR के खाने बहुत छोटे हैं ({mm} मिमी)। बड़ा लेबल या छोटा कोड इस्तेमाल करें।',
+    barsTooThin:'बारकोड की रेखाएँ बहुत पतली हैं ({mm} मिमी) और शायद स्कैन न हों। चौड़ा लेबल या छोटा कोड चुनें।',
+    sizeOkQr:'QR खाने का आकार {mm} मिमी{dots}, स्कैन के लिए ठीक है।',sizeOkBar:'सबसे पतली रेखा {mm} मिमी{dots}, स्कैन के लिए ठीक है।',dotsNote:' ({n} प्रिंटर डॉट)',
+    noValidLabel:'प्रिंट करने के लिए कोई मान्य लेबल नहीं',codeInUse:'यह कोड किसी दूसरे उत्पाद में इस्तेमाल हो रहा है',
+    productUpdated:'उत्पाद अपडेट हुआ',productSaved:'उत्पाद सहेजा गया',productDeleted:'उत्पाद हटाया गया',noProductsExport:'निर्यात के लिए कोई उत्पाद नहीं',
+    importDone:'{added} उत्पाद जोड़े गए',importSkipped:', दोहराए गए कोड वाले {n} छोड़े गए',
+    importFail:'फ़ाइल पढ़ी नहीं जा सकी। पक्का करें कि यह Excel या CSV है और इसमें "name" (या «اسم المنتج») कॉलम है।',
+    rotToastAuto:'प्रिंट डायलॉग में काग़ज़ का आकार और लेआउट (पोर्ट्रेट या लैंडस्केप) चुनें',rotToastOn:'लेबल घुमाकर प्रिंट होगा; जाँचने के लिए टेस्ट लेबल प्रिंट करें',rotToastOff:'लेबल के आकार पर प्रिंट',
+    buyBtn:'ख़रीदें',helpTitle:'अपना लाइसेंस ख़रीदना और संभालना',closeBtn:'बंद करें',helpGo:'ख़रीद जारी रखें',
+    helpIntro:'पहले {limit} लेबल मुफ़्त हैं। उसके बाद ${price} (USD) का एक बार का भुगतान असीमित प्रिंटिंग अनलॉक करता है।',
+    helpA:'ख़रीद और सक्रियण',
+    helpA1:'"पूर्वावलोकन और प्रिंट" भाग में "एक बार की ख़रीद (${price} USD)" दबाएँ, या इस विंडो के नीचे "ख़रीद जारी रखें" दबाएँ।',
+    helpA2:'आपको Stripe Checkout के सुरक्षित भुगतान पेज पर ले जाया जाता है। वहाँ अपना ईमेल और भुगतान विवरण डालें; ऐप आपके कार्ड का विवरण कभी नहीं देखता।',
+    helpA3:'भुगतान पूरा होने पर Stripe आपको ऐप पर वापस भेजता है। फिर ऐप सर्वर Stripe से पुष्टि करता है कि भुगतान सचमुच सफल हुआ, और तभी इस डिवाइस पर लाइसेंस सक्रिय करता है।',
+    helpA4:'केवल भुगतान पेज खोलना या वहाँ से लौटना अपने आप कुछ भी सक्रिय नहीं करता। अगर भुगतान के बाद भी ऐप मुफ़्त प्लान दिखाए, तो एक मिनट रुककर पेज फिर से लोड करें।',
+    helpA5:'भुगतान की पुष्टि होते ही आपके ऑर्डर संदर्भ (PL-…) के साथ एक पुष्टि ईमेल उस पते पर भेजा जाता है जो आपने भुगतान के समय डाला था।',
+    helpA6:'लाइसेंस इस डिवाइस के इसी ब्राउज़र से जुड़ा है। वही ब्राउज़र इस्तेमाल करते रहें और इस साइट की कुकीज़ या साइट डेटा न मिटाएँ; वरना डिवाइस पहचाना नहीं जाएगा और आपको नीचे बताया गया ट्रांसफ़र करना होगा।',
+    helpB:'अपना ख़रीद ईमेल सँभालकर रखें',
+    helpB0:'भुगतान के समय डाले गए उसी ईमेल पते तक अपनी पहुँच बनाए रखें, और पुष्टि ईमेल सँभालकर रखें।',
+    helpB1:'लाइसेंस को दूसरे डिवाइस पर ले जाने के लिए उस ईमेल पर भेजा गया सत्यापन कोड चाहिए। आपको वह इनबॉक्स खोल पाना चाहिए; केवल पता जानना काफ़ी नहीं है।',
+    helpB2:'ख़रीद ईमेल ऐप के अंदर से बदला नहीं जा सकता।',
+    helpB3:'अपना ऑर्डर संदर्भ सँभालकर रखें; सहायता टीम को आपकी ख़रीद पहचानने के लिए इसकी ज़रूरत होती है।',
+    helpC:'दूसरे डिवाइस पर ट्रांसफ़र',
+    helpC0:'लाइसेंस एक समय में केवल एक डिवाइस पर काम करता है। इसे कई डिवाइस पर एक साथ इस्तेमाल नहीं किया जा सकता।',
+    helpC1:'नए डिवाइस पर ऐप उसी ब्राउज़र में खोलें जिसे आप इस्तेमाल करेंगे। "पूर्वावलोकन और प्रिंट" में "लाइसेंस किसी दूसरे डिवाइस पर ख़रीदा था? उसे यहाँ ले आएँ" खोलें। (यह तभी दिखता है जब डिवाइस पहले से लाइसेंसशुदा न हो।)',
+    helpC2:'अपना ख़रीद ईमेल डालें और "सत्यापन कोड भेजें" दबाएँ।',
+    helpC3:'ईमेल में आया 8 अंकों का कोड उसी नए डिवाइस पर {minutes} मिनट के अंदर डालें। हर कोड एक बार ही चलता है और {attempts} गलत प्रयासों के बाद बंद हो जाता है।',
+    helpC4:'"ट्रांसफ़र की पुष्टि करें" दबाएँ और चेतावनी स्वीकार करें।',
+    helpC5:'लाइसेंस तुरंत नए डिवाइस पर चला जाता है और पिछले डिवाइस पर काम करना बंद कर देता है।',
+    helpC6:'हर लाइसेंस के लिए केवल एक ट्रांसफ़र की अनुमति है। उसके बाद लाइसेंस को ऐप से दोबारा नहीं ले जाया जा सकता।',
+    helpD:'समस्या समाधान',
+    helpD1t:'ख़रीद का पुष्टि ईमेल नहीं आया',helpD1:'स्पैम या जंक फ़ोल्डर देखें। सर्वर कुछ घंटों तक अपने आप फिर से भेजने की कोशिश करता है। ईमेल देर से आए तब भी इस डिवाइस पर आपका लाइसेंस काम करता है, और ऑर्डर संदर्भ लाइसेंसशुदा डिवाइस पर लाइसेंस विवरण में दिखता है।',
+    helpD2t:'ट्रांसफ़र कोड नहीं आया',helpD2:'स्पैम देखें, और पक्का करें कि आपने भुगतान में इस्तेमाल किया गया ईमेल बिल्कुल सही लिखा है। गोपनीयता के लिए ऐप वही संदेश दिखाता है, चाहे ईमेल से कोई लाइसेंस जुड़ा हो या नहीं। एक ही ईमेल के लिए आप घंटे में 3 बार तक कोड मँगा सकते हैं।',
+    helpD3t:'कोड की अवधि ख़त्म हो गई या अस्वीकार हुआ',helpD3:'नया कोड मँगाएँ और सबसे नया ईमेल इस्तेमाल करें; नया अनुरोध इस डिवाइस के पुराने कोड रद्द कर देता है।',
+    helpD4t:'शायद मैंने दूसरा ईमेल इस्तेमाल किया',helpD4:'लाइसेंस वाले डिवाइस पर लाइसेंस विवरण में ख़रीद ईमेल का कुछ हिस्सा दिखता है (जैसे pe***@e***.com)। उससे मेल खाता पूरा पता इस्तेमाल करें।',
+    helpD5t:'"ट्रांसफ़र उपलब्ध नहीं"',helpD5:'यह तब होता है जब एकमात्र ट्रांसफ़र पहले ही इस्तेमाल हो चुका हो, भुगतान रिफ़ंड हुआ हो या विवाद में हो, या सर्वर ईमेल न भेज पा रहा हो। अगर ईमेल किसी ख़रीद से जुड़ा है, तो आपको कारण बताने वाला ईमेल मिलेगा।',
+    supportWithEmail:'मदद चाहिए? {email} से संपर्क करें और अपना ऑर्डर संदर्भ बताएँ।',supportNoEmail:'मदद चाहिए? अपने ख़रीद पुष्टि ईमेल का जवाब दें और अपना ऑर्डर संदर्भ बताएँ।'},
+  es:{saved:'Guardado en este dispositivo',saveFailed:'No se pudo guardar en el navegador. Exporta a Excel como copia de seguridad.',
+    typeCode128:'Crea el código con una abreviatura del nombre del producto y un número único; lo leen la mayoría de los escáneres.',
+    typeEan:'EAN-13 solo admite dígitos; no puede incluir el nombre del producto. El número generado es para uso interno.',
+    typeQr:'Conserva el nombre del producto tal cual en el código, con un número único; requiere un escáner 2D.',
+    statusDup:'Este código ya lo usa otro producto guardado. Pulsa «Nuevo código» para evitar duplicados.',
+    freePlan:'Plan gratuito',freeRemaining:'Quedan {n} de {limit} etiquetas gratuitas.',
+    lockedPlan:'Se agotaron las etiquetas gratuitas. Desbloquea la app por {price} US$ para continuar.',
+    unlockBtn:'Compra única ({price} US$)',unlockNeeded:'Ya usaste las etiquetas gratuitas. Compra el desbloqueo para continuar.',
+    unlockSuccess:'Compra verificada. App desbloqueada.',
+    unlockFail:'No se pudo iniciar ni verificar la compra. Inténtalo más tarde.',
+    serviceUnavailable:'Se necesita conexión con el servidor de la app para registrar etiquetas y verificar compras.',
+    unlockedTitle:'Desbloqueada',unlimited:'Etiquetas ilimitadas activadas.',
+    licenseActive:'Licencia activa solo en este dispositivo. Correo de compra: {email} · Referencia: {ref} · Transferencias restantes: {left} de {limit}.',
+    licenseInactive:'La licencia vinculada a este dispositivo no está activa (reembolsada o en disputa). Referencia: {ref}.',
+    licenseMoved:'La licencia que estaba en este dispositivo se transfirió a otro dispositivo.',
+    transferSummary:'¿Compraste la licencia en otro dispositivo? Transfiérela aquí',
+    transferHelp:'Introduce el correo usado en la compra. Si la licencia se puede transferir, te enviaremos un código de verificación. Una licencia solo se puede transferir una vez.',
+    transferEmailLabel:'Correo de compra',transferRequestBtn:'Enviar código de verificación',
+    transferWarning:'Atención: transferir desactiva la licencia en el dispositivo anterior y consume la única transferencia permitida.',
+    transferCodeLabel:'Código de verificación (8 dígitos)',transferConfirmBtn:'Confirmar transferencia',
+    transferSent:'Si este correo pertenece a una licencia transferible, te estamos enviando un código válido durante {minutes} minutos. Revisa también la carpeta de spam.',
+    transferConfirmPrompt:'El dispositivo anterior perderá la licencia y se usará tu única transferencia. ¿Continuar?',
+    transferDone:'Licencia transferida a este dispositivo y desactivada en el anterior.',
+    err_invalid_email:'Introduce un correo electrónico válido.',
+    err_email_unavailable:'El envío de correos no está configurado, así que ahora no se pueden transferir licencias.',
+    err_rate_limited:'Demasiados intentos. Espera una hora y vuelve a intentarlo.',
+    err_already_licensed:'Este dispositivo ya tiene licencia.',
+    err_invalid_code:'El código de verificación tiene 8 dígitos.',
+    err_verification_failed:'El código es incorrecto, caducó o ya se usó. Solicita un código nuevo.',
+    err_transfer_used:'Ya se usó la única transferencia de esta licencia. Contacta con soporte indicando tu referencia de pedido.',
+    err_license_unavailable:'Esta licencia no está activa (reembolsada o en disputa) y no se puede transferir.',
+    transferFail:'No se pudo completar la solicitud. Inténtalo más tarde.',
+    langLabel:'Idioma',themeLabel:'Tema',
+    appTitle:'Etiquetas de productos',appTagline:'Crea e imprime etiquetas con código de barras y QR para todo tipo de productos',
+    themeSystem:'Según el sistema',themeLight:'Claro',themeDark:'Oscuro',
+    newProduct:'Nuevo producto',fName:'Nombre del producto',fPrice:'Precio',fCurrency:'Moneda',currencyPh:'p. ej. €, MXN o US$',
+    codeLabel:'Valor del código de barras',newCodeBtn:'Nuevo código',newCodeTitle:'Generar un nuevo número de serie',
+    fExp:'Fecha de caducidad',fExpHint:'(opcional, p. ej. alimentos y medicamentos)',fBatch:'Número de lote',optional:'(opcional)',
+    saveBtn:'Guardar producto',saveEditBtn:'Guardar cambios',editingTitle:'Editando: {name}',
+    codeType:'Tipo de código',onLabel:'Qué aparece en la etiqueta',showName:'Nombre',showCode:'Número bajo el código de barras',fontSize:'Tamaño de letra:',
+    autoNumbering:'Numeración automática',nextNumber:'Número siguiente',
+    autoNumberingHint:'En Code 128 y QR, el código se forma automáticamente con una abreviatura del nombre del producto y un número de serie único. EAN-13 solo admite dígitos y usa un rango interno que empieza por 200.',
+    previewPrint:'Vista previa e impresión',labelSize:'Tamaño de etiqueta',widthMm:'Ancho (mm)',heightMm:'Alto (mm)',
+    presetMm:'{w} × {h} mm',presetCustom:'Tamaño personalizado',
+    copies:'Copias',printerDpi:'Resolución de la impresora',printDir:'Orientación de impresión',
+    rotNormal:'Normal',rot90:'Girar 90° a la derecha',rot270:'Girar 90° a la izquierda',rotAuto:'Según el papel de la impresora',
+    printBtn:'Imprimir',testBtn:'Etiqueta de prueba',testLabelName:'Etiqueta de prueba {size}',sampleName:'Aceite de oliva',
+    xpTitle:'Configurar Xprinter por primera vez',
+    xp1:'En Windows abre <b>Dispositivos e impresoras</b>, haz clic derecho en Xprinter y elige <b>Preferencias de impresión</b>.',
+    xp2:'En <b>Page Setup</b> pulsa <b>New</b> y crea un papel con el mismo ancho y alto que la etiqueta en mm (por ejemplo 40 × 30); luego guárdalo.',
+    xp3:'Pulsa <b>Imprimir</b> aquí. En el diálogo de impresión elige Xprinter y, en <b>Más ajustes</b>: Tamaño del papel = el papel que creaste, Márgenes = <b>Ninguno</b>, Escala = <b>Predeterminada</b> o 100, y desmarca <b>Encabezados y pies de página</b>.',
+    xp4:'Imprime una <b>Etiqueta de prueba</b>: el marco debe quedar justo en los bordes de la etiqueta. Si está desplazado, calibra el papel de la impresora (mantén pulsado el botón FEED hasta que parpadee la luz).',
+    xp5:'Repite el paso 2 solo una vez por cada tamaño nuevo; después el navegador recuerda tu configuración.',
+    savedProducts:'Productos guardados',searchPh:'Buscar por nombre o código',printSelected:'Imprimir selección',printSelectedN:'Imprimir selección ({n})',
+    exportBtn:'Exportar a Excel',importBtn:'Importar de Excel',selectAll:'Seleccionar todo',selectRow:'Seleccionar',
+    thCode:'Código',thExp:'Caducidad',thBatch:'Lote',
+    regHint:'Introduce los mismos códigos en tu sistema de ventas (puedes exportarlos a Excel) para que el escáner reconozca el producto al cobrar. La lista se guarda en este navegador de este ordenador, así que expórtala a Excel de vez en cuando como copia de seguridad.',
+    regEmpty:'Aún no hay productos guardados. Rellena el formulario y pulsa «Guardar producto», o importa una lista de Excel.',regNoResults:'No hay resultados para esta búsqueda.',
+    editBtn:'Editar',deleteBtn:'Eliminar',confirmDelete:'Confirmar eliminación',
+    valEmpty:'Escribe un código o pulsa «Nuevo código».',valEanDigits:'EAN-13 solo admite 12 o 13 dígitos, sin letras.',
+    valEanCheck:'El último dígito (dígito de control) es incorrecto. El correcto es: {d}',
+    valCode128:'Code 128 solo admite letras inglesas, dígitos y símbolos. Usa QR para textos con acentos u otros alfabetos.',
+    qrTooSmall:'Los módulos del QR son demasiado pequeños ({mm} mm). Usa una etiqueta más grande o un código más corto.',
+    barsTooThin:'Las barras son demasiado finas ({mm} mm) y quizá no se lean. Elige una etiqueta más ancha o un código más corto.',
+    sizeOkQr:'Módulo QR de {mm} mm{dots}, adecuado para escanear.',sizeOkBar:'Barra más fina de {mm} mm{dots}, adecuada para escanear.',dotsNote:' ({n} puntos de impresión)',
+    noValidLabel:'No hay ninguna etiqueta válida para imprimir',codeInUse:'Este código lo usa otro producto',
+    productUpdated:'Producto actualizado',productSaved:'Producto guardado',productDeleted:'Producto eliminado',noProductsExport:'No hay productos para exportar',
+    importDone:'Se añadieron {added} productos',importSkipped:', se omitieron {n} con códigos duplicados',
+    importFail:'No se pudo leer el archivo. Comprueba que sea Excel o CSV con una columna «name» (o «اسم المنتج»).',
+    rotToastAuto:'Elige el tamaño del papel y la orientación (vertical u horizontal) en el diálogo de impresión',rotToastOn:'La etiqueta se imprimirá girada; imprime una etiqueta de prueba para comprobarlo',rotToastOff:'Impresión al tamaño de la etiqueta',
+    buyBtn:'Comprar',helpTitle:'Comprar y gestionar tu licencia',closeBtn:'Cerrar',helpGo:'Continuar con la compra',
+    helpIntro:'Las primeras {limit} etiquetas son gratis. Después, un pago único de {price} US$ desbloquea la impresión ilimitada.',
+    helpA:'Compra y activación',
+    helpA1:'Pulsa «Compra única ({price} US$)» en la sección Vista previa e impresión, o «Continuar con la compra» al final de esta ventana.',
+    helpA2:'Irás a la página de pago segura de Stripe Checkout. Introduce allí tu correo y tus datos de pago; la app nunca ve los datos de tu tarjeta.',
+    helpA3:'Cuando el pago se completa, Stripe te devuelve a la app. Entonces el servidor de la app confirma con Stripe que el pago se realizó y solo entonces activa la licencia en este dispositivo.',
+    helpA4:'Abrir la página de pago o volver de ella no activa nada por sí solo. Si después de pagar la app sigue mostrando el plan gratuito, espera un minuto y recarga la página.',
+    helpA5:'Una vez confirmado el pago, se envía un correo de confirmación con tu referencia de pedido (PL-…) a la dirección que indicaste al pagar.',
+    helpA6:'La licencia está vinculada a este navegador en este dispositivo. Sigue usando el mismo navegador y no borres las cookies ni los datos de este sitio; de lo contrario el dispositivo dejará de reconocerse y necesitarás la transferencia descrita abajo.',
+    helpB:'Conserva tu correo de compra',
+    helpB0:'Mantén el acceso a la misma dirección de correo que indicaste al pagar y guarda el correo de confirmación.',
+    helpB1:'Para transferir la licencia a otro dispositivo se necesita un código de verificación enviado a ese correo. Debes poder abrir esa bandeja de entrada; conocer la dirección no basta.',
+    helpB2:'El correo de compra no se puede cambiar desde la app.',
+    helpB3:'Guarda tu referencia de pedido; soporte la necesita para identificar tu compra.',
+    helpC:'Transferir a otro dispositivo',
+    helpC0:'La licencia funciona en un dispositivo a la vez. No se puede usar en varios dispositivos simultáneamente.',
+    helpC1:'En el dispositivo nuevo, abre la app en el navegador que vayas a usar. En Vista previa e impresión, abre «¿Compraste la licencia en otro dispositivo? Transfiérela aquí». (Solo aparece si el dispositivo aún no tiene licencia.)',
+    helpC2:'Introduce tu correo de compra y pulsa «Enviar código de verificación».',
+    helpC3:'Introduce el código de 8 dígitos del correo en el mismo dispositivo nuevo antes de {minutes} minutos. Cada código sirve una sola vez y deja de funcionar tras {attempts} intentos fallidos.',
+    helpC4:'Pulsa «Confirmar transferencia» y acepta el aviso.',
+    helpC5:'La licencia pasa al instante al dispositivo nuevo y deja de funcionar en el anterior.',
+    helpC6:'Solo se permite una transferencia por licencia. Una vez usada, la licencia no se puede volver a transferir desde la app.',
+    helpD:'Solución de problemas',
+    helpD1t:'No llegó el correo de confirmación de compra',helpD1:'Revisa la carpeta de spam o correo no deseado. El servidor reintenta el envío automáticamente durante unas horas. Tu licencia funciona en este dispositivo aunque el correo se retrase, y la referencia de pedido aparece en los datos de la licencia del dispositivo con licencia.',
+    helpD2t:'No llegó el código de transferencia',helpD2:'Revisa el spam y asegúrate de escribir exactamente el correo usado al pagar. Por privacidad, la app muestra el mismo mensaje tanto si el correo tiene licencia como si no. Puedes pedir un código hasta 3 veces por hora para el mismo correo.',
+    helpD3t:'El código caducó o fue rechazado',helpD3:'Solicita un código nuevo y usa el correo más reciente; una nueva solicitud anula los códigos anteriores en este dispositivo.',
+    helpD4t:'Puede que usara otro correo',helpD4:'En el dispositivo que tiene la licencia, los datos de la licencia muestran parte del correo de compra (por ejemplo pe***@e***.com). Usa la dirección completa que coincida.',
+    helpD5t:'«Transferencia no disponible»',helpD5:'Ocurre cuando ya se usó la única transferencia, cuando el pago se reembolsó o está en disputa, o cuando el servidor no puede enviar correos. Si el correo pertenece a una compra, recibirás un correo explicando el motivo.',
+    supportWithEmail:'¿Necesitas ayuda? Escribe a {email} e indica tu referencia de pedido.',supportNoEmail:'¿Necesitas ayuda? Responde al correo de confirmación de compra e indica tu referencia de pedido.'},
+  fr:{saved:'Enregistré sur cet appareil',saveFailed:'Impossible d’enregistrer dans le navigateur. Exportez vers Excel pour sauvegarder.',
+    typeCode128:'Construit le code à partir d’une abréviation du nom du produit et d’un numéro unique ; lisible par la plupart des scanners.',
+    typeEan:'EAN-13 n’accepte que des chiffres ; le nom du produit ne peut pas y figurer. Le numéro généré est réservé à un usage interne.',
+    typeQr:'Conserve le nom du produit tel quel dans le code, avec un numéro unique ; nécessite un scanner 2D.',
+    statusDup:'Ce code est déjà utilisé par un autre produit enregistré. Cliquez sur « Nouveau code » pour éviter les doublons.',
+    freePlan:'Offre gratuite',freeRemaining:'Il reste {n} étiquettes gratuites sur {limit}.',
+    lockedPlan:'Quota gratuit épuisé. Débloquez l’application pour {price} $ US pour continuer.',
+    unlockBtn:'Achat unique ({price} $ US)',unlockNeeded:'Les étiquettes gratuites sont épuisées. Achetez le déblocage pour continuer.',
+    unlockSuccess:'Achat vérifié. Application débloquée.',
+    unlockFail:'Impossible de lancer ou de vérifier l’achat. Réessayez plus tard.',
+    serviceUnavailable:'La connexion au serveur de l’application est nécessaire pour enregistrer les étiquettes et vérifier les achats.',
+    unlockedTitle:'Débloquée',unlimited:'Étiquettes illimitées activées.',
+    licenseActive:'Licence active sur cet appareil uniquement. E-mail d’achat : {email} · Référence : {ref} · Transferts restants : {left} sur {limit}.',
+    licenseInactive:'La licence liée à cet appareil n’est pas active (remboursée ou contestée). Référence : {ref}.',
+    licenseMoved:'La licence de cet appareil a été transférée vers un autre appareil.',
+    transferSummary:'Licence achetée sur un autre appareil ? Transférez-la ici',
+    transferHelp:'Saisissez l’e-mail utilisé lors de l’achat. Si la licence peut être transférée, nous y enverrons un code de vérification. Une licence ne peut être transférée qu’une seule fois.',
+    transferEmailLabel:'E-mail d’achat',transferRequestBtn:'Envoyer le code de vérification',
+    transferWarning:'Attention : le transfert désactive la licence sur l’appareil précédent et utilise l’unique transfert autorisé.',
+    transferCodeLabel:'Code de vérification (8 chiffres)',transferConfirmBtn:'Confirmer le transfert',
+    transferSent:'Si cet e-mail correspond à une licence transférable, un code valable {minutes} minutes est en route. Vérifiez aussi vos courriers indésirables.',
+    transferConfirmPrompt:'L’appareil précédent perdra la licence et votre unique transfert sera utilisé. Continuer ?',
+    transferDone:'Licence transférée sur cet appareil et désactivée sur le précédent.',
+    err_invalid_email:'Saisissez une adresse e-mail valide.',
+    err_email_unavailable:'L’envoi d’e-mails n’est pas configuré ; les licences ne peuvent donc pas être transférées pour le moment.',
+    err_rate_limited:'Trop de tentatives. Patientez une heure puis réessayez.',
+    err_already_licensed:'Cet appareil dispose déjà d’une licence.',
+    err_invalid_code:'Le code de vérification comporte 8 chiffres.',
+    err_verification_failed:'Le code est erroné, expiré ou déjà utilisé. Demandez un nouveau code.',
+    err_transfer_used:'L’unique transfert de cette licence a déjà été utilisé. Contactez le support avec votre référence de commande.',
+    err_license_unavailable:'Cette licence n’est pas active (remboursée ou contestée) et ne peut pas être transférée.',
+    transferFail:'Impossible de traiter la demande. Réessayez plus tard.',
+    langLabel:'Langue',themeLabel:'Thème',
+    appTitle:'Étiquettes produits',appTagline:'Créez et imprimez des étiquettes code-barres et QR pour tous types de produits',
+    themeSystem:'Selon le système',themeLight:'Clair',themeDark:'Sombre',
+    newProduct:'Nouveau produit',fName:'Nom du produit',fPrice:'Prix',fCurrency:'Devise',currencyPh:'ex. € ou FCFA',
+    codeLabel:'Valeur du code-barres',newCodeBtn:'Nouveau code',newCodeTitle:'Générer un nouveau numéro de série',
+    fExp:'Date d’expiration',fExpHint:'(facultatif, p. ex. aliments et médicaments)',fBatch:'Numéro de lot',optional:'(facultatif)',
+    saveBtn:'Enregistrer le produit',saveEditBtn:'Enregistrer les modifications',editingTitle:'Modification : {name}',
+    codeType:'Type de code',onLabel:'Affiché sur l’étiquette',showName:'Nom',showCode:'Numéro sous le code-barres',fontSize:'Taille du texte :',
+    autoNumbering:'Numérotation automatique',nextNumber:'Numéro suivant',
+    autoNumberingHint:'En Code 128 et QR, le code est formé automatiquement d’une abréviation du nom du produit et d’un numéro de série unique. EAN-13 n’accepte que des chiffres et utilise une plage interne commençant par 200.',
+    previewPrint:'Aperçu et impression',labelSize:'Format d’étiquette',widthMm:'Largeur (mm)',heightMm:'Hauteur (mm)',
+    presetMm:'{w} × {h} mm',presetCustom:'Format personnalisé',
+    copies:'Copies',printerDpi:'Résolution de l’imprimante',printDir:'Orientation d’impression',
+    rotNormal:'Normale',rot90:'Rotation 90° à droite',rot270:'Rotation 90° à gauche',rotAuto:'Selon le papier de l’imprimante',
+    printBtn:'Imprimer',testBtn:'Étiquette de test',testLabelName:'Étiquette de test {size}',sampleName:'Huile d’olive',
+    xpTitle:'Configurer Xprinter la première fois',
+    xp1:'Sous Windows, ouvrez <b>Périphériques et imprimantes</b>, faites un clic droit sur Xprinter et choisissez <b>Options d’impression</b>.',
+    xp2:'Dans <b>Page Setup</b>, cliquez sur <b>New</b> et créez un papier de même largeur et hauteur que l’étiquette en mm (par exemple 40 × 30), puis enregistrez-le.',
+    xp3:'Cliquez ici sur <b>Imprimer</b>. Dans la boîte de dialogue, choisissez Xprinter, puis sous <b>Plus de paramètres</b> : Taille du papier = le papier créé, Marges = <b>Aucune</b>, Échelle = <b>Par défaut</b> ou 100, et décochez <b>En-têtes et pieds de page</b>.',
+    xp4:'Imprimez une <b>Étiquette de test</b> : le cadre doit tomber exactement sur les bords de l’étiquette. S’il est décalé, lancez l’étalonnage du papier de l’imprimante (maintenez le bouton FEED jusqu’à ce que le voyant clignote).',
+    xp5:'Répétez l’étape 2 une seule fois par nouveau format ; le navigateur mémorise ensuite vos réglages.',
+    savedProducts:'Produits enregistrés',searchPh:'Rechercher par nom ou code',printSelected:'Imprimer la sélection',printSelectedN:'Imprimer la sélection ({n})',
+    exportBtn:'Exporter vers Excel',importBtn:'Importer depuis Excel',selectAll:'Tout sélectionner',selectRow:'Sélectionner',
+    thCode:'Code',thExp:'Expiration',thBatch:'Lot',
+    regHint:'Saisissez les mêmes codes dans votre logiciel de caisse (vous pouvez les exporter vers Excel) pour que le scanner reconnaisse le produit lors de la vente. La liste est enregistrée dans ce navigateur sur cet ordinateur : exportez-la vers Excel de temps en temps pour la sauvegarder.',
+    regEmpty:'Aucun produit enregistré pour l’instant. Remplissez le formulaire et cliquez sur « Enregistrer le produit », ou importez une liste depuis Excel.',regNoResults:'Aucun résultat pour cette recherche.',
+    editBtn:'Modifier',deleteBtn:'Supprimer',confirmDelete:'Confirmer la suppression',
+    valEmpty:'Saisissez un code ou cliquez sur « Nouveau code ».',valEanDigits:'EAN-13 n’accepte que 12 ou 13 chiffres, sans lettres.',
+    valEanCheck:'Le dernier chiffre (clé de contrôle) est faux. Le bon est : {d}',
+    valCode128:'Code 128 n’accepte que les lettres anglaises, les chiffres et les symboles. Utilisez QR pour les textes accentués ou d’autres alphabets.',
+    qrTooSmall:'Les modules du QR sont trop petits ({mm} mm). Utilisez une étiquette plus grande ou un code plus court.',
+    barsTooThin:'Les barres sont trop fines ({mm} mm) et risquent de ne pas être lues. Choisissez une étiquette plus large ou un code plus court.',
+    sizeOkQr:'Module QR de {mm} mm{dots}, bon pour la lecture.',sizeOkBar:'Barre la plus fine de {mm} mm{dots}, bonne pour la lecture.',dotsNote:' ({n} points d’impression)',
+    noValidLabel:'Aucune étiquette valide à imprimer',codeInUse:'Ce code est utilisé par un autre produit',
+    productUpdated:'Produit mis à jour',productSaved:'Produit enregistré',productDeleted:'Produit supprimé',noProductsExport:'Aucun produit à exporter',
+    importDone:'{added} produits ajoutés',importSkipped:', {n} ignorés car leurs codes existent déjà',
+    importFail:'Impossible de lire le fichier. Vérifiez qu’il s’agit d’un Excel ou CSV avec une colonne « name » (ou «اسم المنتج»).',
+    rotToastAuto:'Choisissez le format du papier et l’orientation (portrait ou paysage) dans la boîte de dialogue d’impression',rotToastOn:'L’étiquette sera imprimée pivotée ; imprimez une étiquette de test pour vérifier',rotToastOff:'Impression au format de l’étiquette',
+    buyBtn:'Acheter',helpTitle:'Acheter et gérer votre licence',closeBtn:'Fermer',helpGo:'Continuer vers l’achat',
+    helpIntro:'Les {limit} premières étiquettes sont gratuites. Ensuite, un paiement unique de {price} $ US débloque l’impression illimitée.',
+    helpA:'Achat et activation',
+    helpA1:'Cliquez sur « Achat unique ({price} $ US) » dans la section Aperçu et impression, ou sur « Continuer vers l’achat » en bas de cette fenêtre.',
+    helpA2:'Vous êtes redirigé vers la page de paiement sécurisée Stripe Checkout. Saisissez-y votre e-mail et vos informations de paiement ; l’application ne voit jamais les données de votre carte.',
+    helpA3:'Une fois le paiement terminé, Stripe vous renvoie vers l’application. Le serveur de l’application vérifie alors auprès de Stripe que le paiement a réussi, et seulement ensuite active la licence sur cet appareil.',
+    helpA4:'Ouvrir la page de paiement ou en revenir n’active rien à lui seul. Si l’application affiche toujours l’offre gratuite après le paiement, attendez une minute puis rechargez la page.',
+    helpA5:'Une fois le paiement confirmé, un e-mail de confirmation contenant votre référence de commande (PL-…) est envoyé à l’adresse saisie lors du paiement.',
+    helpA6:'La licence est liée à ce navigateur sur cet appareil. Continuez à utiliser le même navigateur et n’effacez pas les cookies ni les données de ce site ; sinon l’appareil ne sera plus reconnu et vous aurez besoin du transfert décrit ci-dessous.',
+    helpB:'Conservez votre e-mail d’achat',
+    helpB0:'Gardez l’accès à l’adresse e-mail saisie lors du paiement, et conservez l’e-mail de confirmation.',
+    helpB1:'Transférer la licence vers un autre appareil nécessite un code de vérification envoyé à cette adresse. Vous devez pouvoir ouvrir cette boîte de réception ; connaître l’adresse ne suffit pas.',
+    helpB2:'L’e-mail d’achat ne peut pas être modifié depuis l’application.',
+    helpB3:'Conservez votre référence de commande ; le support en a besoin pour identifier votre achat.',
+    helpC:'Transfert vers un autre appareil',
+    helpC0:'La licence fonctionne sur un seul appareil à la fois. Elle ne peut pas être utilisée sur plusieurs appareils simultanément.',
+    helpC1:'Sur le nouvel appareil, ouvrez l’application dans le navigateur que vous utiliserez. Dans Aperçu et impression, ouvrez « Licence achetée sur un autre appareil ? Transférez-la ici ». (Cette option n’apparaît que si l’appareil n’a pas encore de licence.)',
+    helpC2:'Saisissez votre e-mail d’achat et cliquez sur « Envoyer le code de vérification ».',
+    helpC3:'Saisissez le code à 8 chiffres reçu par e-mail sur ce même nouvel appareil dans les {minutes} minutes. Chaque code ne sert qu’une fois et cesse de fonctionner après {attempts} essais erronés.',
+    helpC4:'Cliquez sur « Confirmer le transfert » et acceptez l’avertissement.',
+    helpC5:'La licence passe immédiatement sur le nouvel appareil et cesse de fonctionner sur le précédent.',
+    helpC6:'Un seul transfert est autorisé par licence. Une fois utilisé, la licence ne peut plus être transférée depuis l’application.',
+    helpD:'Dépannage',
+    helpD1t:'L’e-mail de confirmation d’achat n’est pas arrivé',helpD1:'Vérifiez vos courriers indésirables. Le serveur réessaie automatiquement l’envoi pendant quelques heures. Votre licence fonctionne sur cet appareil même si l’e-mail tarde, et la référence de commande s’affiche dans les détails de la licence sur l’appareil licencié.',
+    helpD2t:'Le code de transfert n’est pas arrivé',helpD2:'Vérifiez les indésirables et assurez-vous d’avoir saisi exactement l’e-mail utilisé lors du paiement. Par respect de la vie privée, l’application affiche le même message que l’e-mail ait une licence ou non. Vous pouvez demander un code jusqu’à 3 fois par heure pour le même e-mail.',
+    helpD3t:'Le code a expiré ou a été refusé',helpD3:'Demandez un nouveau code et utilisez l’e-mail le plus récent ; une nouvelle demande annule les codes précédents sur cet appareil.',
+    helpD4t:'J’ai peut-être utilisé un autre e-mail',helpD4:'Sur l’appareil qui détient la licence, les détails de la licence affichent une partie de l’e-mail d’achat (par exemple pe***@e***.com). Utilisez l’adresse complète correspondante.',
+    helpD5t:'« Transfert indisponible »',helpD5:'Cela arrive lorsque l’unique transfert a déjà été utilisé, lorsque le paiement a été remboursé ou est contesté, ou lorsque le serveur ne peut pas envoyer d’e-mails. Si l’e-mail correspond à un achat, vous recevrez un e-mail expliquant la raison.',
+    supportWithEmail:'Besoin d’aide ? Contactez {email} en indiquant votre référence de commande.',supportNoEmail:'Besoin d’aide ? Répondez à l’e-mail de confirmation d’achat en indiquant votre référence de commande.'},
+  pt:{saved:'Salvo neste dispositivo',saveFailed:'Não foi possível salvar no navegador. Exporte para o Excel como backup.',
+    typeCode128:'Gera o código a partir de uma abreviação do nome do produto e um número único; lido pela maioria dos leitores.',
+    typeEan:'O EAN-13 aceita apenas dígitos; não pode conter o nome do produto. O número gerado é para uso interno.',
+    typeQr:'Mantém o nome do produto como está no código, com um número único; requer um leitor 2D.',
+    statusDup:'Este código já é usado por outro produto salvo. Clique em "Novo código" para evitar duplicidade.',
+    freePlan:'Plano gratuito',freeRemaining:'Restam {n} de {limit} etiquetas gratuitas.',
+    lockedPlan:'Cota gratuita esgotada. Desbloqueie o app por US$ {price} para continuar.',
+    unlockBtn:'Compra única (US$ {price})',unlockNeeded:'As etiquetas gratuitas acabaram. Compre o desbloqueio para continuar.',
+    unlockSuccess:'Compra verificada. App desbloqueado.',
+    unlockFail:'Não foi possível iniciar ou verificar a compra. Tente novamente mais tarde.',
+    serviceUnavailable:'É preciso conectar ao servidor do app para registrar etiquetas e verificar compras.',
+    unlockedTitle:'Desbloqueado',unlimited:'Etiquetas ilimitadas ativadas.',
+    licenseActive:'Licença ativa somente neste dispositivo. E-mail da compra: {email} · Referência: {ref} · Transferências restantes: {left} de {limit}.',
+    licenseInactive:'A licença vinculada a este dispositivo não está ativa (reembolsada ou em disputa). Referência: {ref}.',
+    licenseMoved:'A licença que estava neste dispositivo foi transferida para outro dispositivo.',
+    transferSummary:'Comprou a licença em outro dispositivo? Transfira para cá',
+    transferHelp:'Digite o e-mail usado na compra. Se a licença puder ser transferida, enviaremos um código de verificação para ele. A licença só pode ser transferida uma vez.',
+    transferEmailLabel:'E-mail da compra',transferRequestBtn:'Enviar código de verificação',
+    transferWarning:'Atenção: a transferência desativa a licença no dispositivo anterior e usa a única transferência permitida.',
+    transferCodeLabel:'Código de verificação (8 dígitos)',transferConfirmBtn:'Confirmar transferência',
+    transferSent:'Se este e-mail pertencer a uma licença transferível, um código válido por {minutes} minutos está a caminho. Verifique também a pasta de spam.',
+    transferConfirmPrompt:'O dispositivo anterior perderá a licença e sua única transferência será usada. Continuar?',
+    transferDone:'Licença transferida para este dispositivo e desativada no anterior.',
+    err_invalid_email:'Digite um endereço de e-mail válido.',
+    err_email_unavailable:'O envio de e-mails não está configurado, então não é possível transferir licenças agora.',
+    err_rate_limited:'Muitas tentativas. Aguarde uma hora e tente novamente.',
+    err_already_licensed:'Este dispositivo já está licenciado.',
+    err_invalid_code:'O código de verificação tem 8 dígitos.',
+    err_verification_failed:'O código está errado, expirou ou já foi usado. Solicite um novo código.',
+    err_transfer_used:'A única transferência desta licença já foi usada. Entre em contato com o suporte informando a referência do pedido.',
+    err_license_unavailable:'Esta licença não está ativa (reembolsada ou em disputa) e não pode ser transferida.',
+    transferFail:'Não foi possível concluir a solicitação. Tente novamente mais tarde.',
+    langLabel:'Idioma',themeLabel:'Tema',
+    appTitle:'Etiquetas de produtos',appTagline:'Crie e imprima etiquetas com código de barras e QR para todo tipo de produto',
+    themeSystem:'Conforme o sistema',themeLight:'Claro',themeDark:'Escuro',
+    newProduct:'Novo produto',fName:'Nome do produto',fPrice:'Preço',fCurrency:'Moeda',currencyPh:'ex.: R$ ou €',
+    codeLabel:'Valor do código de barras',newCodeBtn:'Novo código',newCodeTitle:'Gerar um novo número de série',
+    fExp:'Data de validade',fExpHint:'(opcional, ex.: alimentos e medicamentos)',fBatch:'Número do lote',optional:'(opcional)',
+    saveBtn:'Salvar produto',saveEditBtn:'Salvar alterações',editingTitle:'Editando: {name}',
+    codeType:'Tipo de código',onLabel:'O que aparece na etiqueta',showName:'Nome',showCode:'Número abaixo do código de barras',fontSize:'Tamanho da fonte:',
+    autoNumbering:'Numeração automática',nextNumber:'Próximo número',
+    autoNumberingHint:'No Code 128 e no QR, o código é formado automaticamente por uma abreviação do nome do produto e um número de série único. O EAN-13 aceita apenas dígitos e usa uma faixa interna que começa com 200.',
+    previewPrint:'Visualização e impressão',labelSize:'Tamanho da etiqueta',widthMm:'Largura (mm)',heightMm:'Altura (mm)',
+    presetMm:'{w} × {h} mm',presetCustom:'Tamanho personalizado',
+    copies:'Cópias',printerDpi:'Resolução da impressora',printDir:'Orientação da impressão',
+    rotNormal:'Normal',rot90:'Girar 90° à direita',rot270:'Girar 90° à esquerda',rotAuto:'Conforme o papel da impressora',
+    printBtn:'Imprimir',testBtn:'Etiqueta de teste',testLabelName:'Etiqueta de teste {size}',sampleName:'Azeite de oliva',
+    xpTitle:'Configurar a Xprinter pela primeira vez',
+    xp1:'No Windows, abra <b>Dispositivos e Impressoras</b>, clique com o botão direito na Xprinter e escolha <b>Preferências de impressão</b>.',
+    xp2:'Em <b>Page Setup</b>, clique em <b>New</b> e crie um papel com a mesma largura e altura da etiqueta em mm (por exemplo 40 × 30) e salve.',
+    xp3:'Clique em <b>Imprimir</b> aqui. Na janela de impressão escolha a Xprinter e, em <b>Mais configurações</b>: Tamanho do papel = o papel que você criou, Margens = <b>Nenhuma</b>, Escala = <b>Padrão</b> ou 100, e desmarque <b>Cabeçalhos e rodapés</b>.',
+    xp4:'Imprima uma <b>Etiqueta de teste</b>: a moldura deve ficar exatamente nas bordas da etiqueta. Se estiver deslocada, faça a calibração de papel da impressora (segure o botão FEED até a luz piscar).',
+    xp5:'Repita o passo 2 só uma vez para cada novo tamanho; depois o navegador lembra suas configurações.',
+    savedProducts:'Produtos salvos',searchPh:'Buscar por nome ou código',printSelected:'Imprimir selecionados',printSelectedN:'Imprimir selecionados ({n})',
+    exportBtn:'Exportar para Excel',importBtn:'Importar do Excel',selectAll:'Selecionar tudo',selectRow:'Selecionar',
+    thCode:'Código',thExp:'Validade',thBatch:'Lote',
+    regHint:'Cadastre os mesmos códigos no seu sistema de vendas (você pode exportá-los para o Excel) para que o leitor reconheça o produto na venda. A lista fica salva neste navegador deste computador, então exporte para o Excel de vez em quando como backup.',
+    regEmpty:'Ainda não há produtos salvos. Preencha o formulário e clique em "Salvar produto", ou importe uma lista do Excel.',regNoResults:'Nenhum resultado para esta busca.',
+    editBtn:'Editar',deleteBtn:'Excluir',confirmDelete:'Confirmar exclusão',
+    valEmpty:'Digite um código ou clique em "Novo código".',valEanDigits:'O EAN-13 aceita apenas 12 ou 13 dígitos, sem letras.',
+    valEanCheck:'O último dígito (dígito verificador) está errado. O correto é: {d}',
+    valCode128:'O Code 128 aceita apenas letras inglesas, dígitos e símbolos. Use QR para textos com acentos ou outros alfabetos.',
+    qrTooSmall:'Os módulos do QR estão pequenos demais ({mm} mm). Use uma etiqueta maior ou um código mais curto.',
+    barsTooThin:'As barras estão finas demais ({mm} mm) e podem não ser lidas. Escolha uma etiqueta mais larga ou um código mais curto.',
+    sizeOkQr:'Módulo do QR de {mm} mm{dots}, bom para leitura.',sizeOkBar:'Barra mais fina de {mm} mm{dots}, boa para leitura.',dotsNote:' ({n} pontos de impressão)',
+    noValidLabel:'Nenhuma etiqueta válida para imprimir',codeInUse:'Este código é usado por outro produto',
+    productUpdated:'Produto atualizado',productSaved:'Produto salvo',productDeleted:'Produto excluído',noProductsExport:'Nenhum produto para exportar',
+    importDone:'{added} produtos adicionados',importSkipped:', {n} ignorados por códigos duplicados',
+    importFail:'Não foi possível ler o arquivo. Verifique se é Excel ou CSV com uma coluna "name" (ou «اسم المنتج»).',
+    rotToastAuto:'Escolha o tamanho do papel e a orientação (retrato ou paisagem) na janela de impressão',rotToastOn:'A etiqueta será impressa girada; imprima uma etiqueta de teste para conferir',rotToastOff:'Impressão no tamanho da etiqueta',
+    buyBtn:'Comprar',helpTitle:'Comprar e gerenciar sua licença',closeBtn:'Fechar',helpGo:'Continuar para a compra',
+    helpIntro:'As primeiras {limit} etiquetas são grátis. Depois, um pagamento único de US$ {price} libera a impressão ilimitada.',
+    helpA:'Compra e ativação',
+    helpA1:'Clique em "Compra única (US$ {price})" na seção Visualização e impressão, ou em "Continuar para a compra" no fim desta janela.',
+    helpA2:'Você é levado à página de pagamento segura do Stripe Checkout. Informe ali seu e-mail e os dados de pagamento; o app nunca vê os dados do seu cartão.',
+    helpA3:'Quando o pagamento é concluído, o Stripe leva você de volta ao app. O servidor do app então confirma com o Stripe que o pagamento deu certo e só então ativa a licença neste dispositivo.',
+    helpA4:'Abrir a página de pagamento ou voltar dela não ativa nada por si só. Se o app continuar mostrando o plano gratuito depois de pagar, aguarde um minuto e recarregue a página.',
+    helpA5:'Assim que o pagamento é confirmado, um e-mail de confirmação com a referência do pedido (PL-…) é enviado ao endereço que você informou no pagamento.',
+    helpA6:'A licença está vinculada a este navegador neste dispositivo. Continue usando o mesmo navegador e não apague os cookies nem os dados deste site; caso contrário o dispositivo deixará de ser reconhecido e você precisará da transferência descrita abaixo.',
+    helpB:'Guarde seu e-mail de compra',
+    helpB0:'Mantenha o acesso ao mesmo endereço de e-mail que você informou no pagamento e guarde o e-mail de confirmação.',
+    helpB1:'Transferir a licença para outro dispositivo exige um código de verificação enviado a esse e-mail. Você precisa conseguir abrir essa caixa de entrada; saber o endereço não basta.',
+    helpB2:'O e-mail da compra não pode ser alterado pelo app.',
+    helpB3:'Guarde a referência do pedido; o suporte precisa dela para identificar sua compra.',
+    helpC:'Transferir para outro dispositivo',
+    helpC0:'A licença funciona em um dispositivo por vez. Não pode ser usada em vários dispositivos ao mesmo tempo.',
+    helpC1:'No novo dispositivo, abra o app no navegador que você vai usar. Em Visualização e impressão, abra "Comprou a licença em outro dispositivo? Transfira para cá". (Só aparece quando o dispositivo ainda não está licenciado.)',
+    helpC2:'Digite seu e-mail de compra e clique em "Enviar código de verificação".',
+    helpC3:'Digite o código de 8 dígitos do e-mail no mesmo dispositivo novo em até {minutes} minutos. Cada código vale uma única vez e deixa de funcionar após {attempts} tentativas erradas.',
+    helpC4:'Clique em "Confirmar transferência" e aceite o aviso.',
+    helpC5:'A licença passa na hora para o novo dispositivo e deixa de funcionar no anterior.',
+    helpC6:'Só é permitida uma transferência por licença. Depois de usada, a licença não pode ser transferida de novo pelo app.',
+    helpD:'Solução de problemas',
+    helpD1t:'O e-mail de confirmação da compra não chegou',helpD1:'Verifique a pasta de spam ou lixo eletrônico. O servidor tenta reenviar automaticamente por algumas horas. Sua licença funciona neste dispositivo mesmo que o e-mail atrase, e a referência do pedido aparece nos detalhes da licença no dispositivo licenciado.',
+    helpD2t:'O código de transferência não chegou',helpD2:'Verifique o spam e confira se digitou exatamente o e-mail usado no pagamento. Por privacidade, o app mostra a mesma mensagem tendo o e-mail uma licença ou não. Você pode pedir um código até 3 vezes por hora para o mesmo e-mail.',
+    helpD3t:'O código expirou ou foi recusado',helpD3:'Peça um novo código e use o e-mail mais recente; um novo pedido cancela os códigos anteriores neste dispositivo.',
+    helpD4t:'Talvez eu tenha usado outro e-mail',helpD4:'No dispositivo que tem a licença, os detalhes da licença mostram parte do e-mail da compra (por exemplo pe***@e***.com). Use o endereço completo correspondente.',
+    helpD5t:'"Transferência indisponível"',helpD5:'Isso acontece quando a única transferência já foi usada, quando o pagamento foi reembolsado ou está em disputa, ou quando o servidor não consegue enviar e-mails. Se o e-mail pertencer a uma compra, você receberá um e-mail explicando o motivo.',
+    supportWithEmail:'Precisa de ajuda? Escreva para {email} e informe a referência do pedido.',supportNoEmail:'Precisa de ajuda? Responda ao e-mail de confirmação da compra e informe a referência do pedido.'},
+  ur:{saved:'اس ڈیوائس پر محفوظ ہے',saveFailed:'براؤزر میں محفوظ نہیں ہو سکا۔ بیک اپ کے لیے Excel میں ایکسپورٹ کریں۔',
+    typeCode128:'پروڈکٹ کے نام کے مخفف اور ایک منفرد نمبر سے کوڈ بناتا ہے؛ زیادہ تر اسکینر اسے پڑھ لیتے ہیں۔',
+    typeEan:'EAN-13 میں صرف ہندسے ہو سکتے ہیں؛ اس میں پروڈکٹ کا نام شامل نہیں ہو سکتا۔ بنایا گیا نمبر صرف اندرونی استعمال کے لیے ہے۔',
+    typeQr:'کوڈ میں پروڈکٹ کا نام جوں کا توں ایک منفرد نمبر کے ساتھ رکھتا ہے؛ اس کے لیے 2D اسکینر درکار ہے۔',
+    statusDup:'یہ کوڈ پہلے سے کسی دوسری محفوظ پروڈکٹ میں استعمال ہو رہا ہے۔ تکرار سے بچنے کے لیے «نیا کوڈ» دبائیں۔',
+    freePlan:'مفت پلان',freeRemaining:'{limit} میں سے {n} مفت لیبل باقی ہیں۔',
+    lockedPlan:'مفت حد ختم ہو گئی۔ جاری رکھنے کے لیے {price} امریکی ڈالر میں ایپ اَن لاک کریں۔',
+    unlockBtn:'ایک بار کی خریداری ({price} امریکی ڈالر)',unlockNeeded:'مفت لیبل ختم ہو گئے۔ جاری رکھنے کے لیے اَن لاک خریدیں۔',
+    unlockSuccess:'خریداری کی تصدیق ہو گئی۔ ایپ اَن لاک ہو گئی۔',
+    unlockFail:'خریداری شروع یا تصدیق نہیں ہو سکی۔ براہ کرم بعد میں دوبارہ کوشش کریں۔',
+    serviceUnavailable:'لیبل درج کرنے اور خریداری کی تصدیق کے لیے ایپ سرور سے رابطہ ضروری ہے۔',
+    unlockedTitle:'اَن لاک',unlimited:'لامحدود لیبل فعال ہیں۔',
+    licenseActive:'لائسنس صرف اسی ڈیوائس پر فعال ہے۔ خریداری کا ای میل: {email} · حوالہ: {ref} · باقی منتقلیاں: {limit} میں سے {left}۔',
+    licenseInactive:'اس ڈیوائس سے منسلک لائسنس فعال نہیں ہے (رقم واپس ہو گئی یا تنازع میں ہے)۔ حوالہ: {ref}۔',
+    licenseMoved:'اس ڈیوائس پر موجود لائسنس دوسری ڈیوائس پر منتقل کر دیا گیا ہے۔',
+    transferSummary:'لائسنس کسی دوسری ڈیوائس پر خریدا تھا؟ اسے یہاں منتقل کریں',
+    transferHelp:'خریداری میں استعمال ہونے والا ای میل درج کریں۔ اگر لائسنس منتقل ہو سکتا ہے تو ہم اس پر تصدیقی کوڈ بھیجیں گے۔ لائسنس صرف ایک بار منتقل کیا جا سکتا ہے۔',
+    transferEmailLabel:'خریداری کا ای میل',transferRequestBtn:'تصدیقی کوڈ بھیجیں',
+    transferWarning:'انتباہ: منتقلی سے پچھلی ڈیوائس پر لائسنس بند ہو جاتا ہے اور واحد اجازت شدہ منتقلی استعمال ہو جاتی ہے۔',
+    transferCodeLabel:'تصدیقی کوڈ (8 ہندسے)',transferConfirmBtn:'منتقلی کی تصدیق کریں',
+    transferSent:'اگر یہ ای میل کسی قابلِ منتقلی لائسنس سے منسلک ہے تو {minutes} منٹ تک کارآمد کوڈ بھیجا جا رہا ہے۔ اسپام فولڈر بھی دیکھیں۔',
+    transferConfirmPrompt:'پچھلی ڈیوائس سے لائسنس ختم ہو جائے گا اور آپ کی واحد منتقلی استعمال ہو جائے گی۔ جاری رکھیں؟',
+    transferDone:'لائسنس اس ڈیوائس پر منتقل ہو گیا اور پچھلی ڈیوائس پر بند کر دیا گیا۔',
+    err_invalid_email:'درست ای میل پتہ درج کریں۔',
+    err_email_unavailable:'ای میل سروس ترتیب نہیں دی گئی، اس لیے ابھی لائسنس منتقل نہیں ہو سکتے۔',
+    err_rate_limited:'بہت زیادہ کوششیں۔ ایک گھنٹہ انتظار کر کے دوبارہ کوشش کریں۔',
+    err_already_licensed:'یہ ڈیوائس پہلے سے لائسنس یافتہ ہے۔',
+    err_invalid_code:'تصدیقی کوڈ 8 ہندسوں کا ہوتا ہے۔',
+    err_verification_failed:'کوڈ غلط ہے، اس کی مدت ختم ہو گئی ہے یا پہلے استعمال ہو چکا ہے۔ نیا کوڈ منگوائیں۔',
+    err_transfer_used:'اس لائسنس کی واحد منتقلی استعمال ہو چکی ہے۔ اپنے آرڈر کے حوالے کے ساتھ سپورٹ سے رابطہ کریں۔',
+    err_license_unavailable:'یہ لائسنس فعال نہیں ہے (رقم واپس ہو گئی یا تنازع میں ہے) اور منتقل نہیں کیا جا سکتا۔',
+    transferFail:'درخواست مکمل نہیں ہو سکی۔ براہ کرم بعد میں دوبارہ کوشش کریں۔',
+    langLabel:'زبان',themeLabel:'تھیم',
+    appTitle:'پروڈکٹ لیبل',appTagline:'ہر قسم کی پروڈکٹس کے لیے بارکوڈ اور QR لیبل بنائیں اور پرنٹ کریں',
+    themeSystem:'سسٹم کے مطابق',themeLight:'روشن',themeDark:'تاریک',
+    newProduct:'نئی پروڈکٹ',fName:'پروڈکٹ کا نام',fPrice:'قیمت',fCurrency:'کرنسی',currencyPh:'مثلاً: روپے یا PKR',
+    codeLabel:'بارکوڈ کی قدر',newCodeBtn:'نیا کوڈ',newCodeTitle:'نیا سیریل نمبر بنائیں',
+    fExp:'میعاد ختم ہونے کی تاریخ',fExpHint:'(اختیاری، مثلاً غذائی اشیا اور ادویات)',fBatch:'بیچ نمبر',optional:'(اختیاری)',
+    saveBtn:'پروڈکٹ محفوظ کریں',saveEditBtn:'تبدیلیاں محفوظ کریں',editingTitle:'ترمیم: {name}',
+    codeType:'کوڈ کی قسم',onLabel:'لیبل پر کیا دکھائی دے',showName:'نام',showCode:'بارکوڈ کے نیچے نمبر',fontSize:'فونٹ کا سائز:',
+    autoNumbering:'خودکار نمبرنگ',nextNumber:'اگلا نمبر',
+    autoNumberingHint:'Code 128 اور QR میں کوڈ خودبخود پروڈکٹ کے نام کے مخفف اور ایک منفرد سیریل نمبر سے بنتا ہے۔ EAN-13 صرف ہندسے قبول کرتا ہے اور 200 سے شروع ہونے والی اندرونی رینج استعمال کرتا ہے۔',
+    previewPrint:'پیش نظارہ اور پرنٹ',labelSize:'لیبل کا سائز',widthMm:'چوڑائی (ملی میٹر)',heightMm:'اونچائی (ملی میٹر)',
+    presetMm:'{w} × {h} ملی میٹر',presetCustom:'حسبِ ضرورت سائز',
+    copies:'کاپیاں',printerDpi:'پرنٹر ریزولوشن',printDir:'پرنٹ کی سمت',
+    rotNormal:'عام',rot90:'90° دائیں گھمائیں',rot270:'90° بائیں گھمائیں',rotAuto:'پرنٹر کے کاغذ کے مطابق',
+    printBtn:'پرنٹ',testBtn:'ٹیسٹ لیبل',testLabelName:'ٹیسٹ لیبل {size}',sampleName:'زیتون کا تیل',
+    xpTitle:'Xprinter کی پہلی بار ترتیب',
+    xp1:'Windows میں <b>Devices and Printers</b> کھولیں، Xprinter پر رائٹ کلک کریں اور <b>Printing preferences</b> منتخب کریں۔',
+    xp2:'<b>Page Setup</b> میں <b>New</b> دبائیں اور لیبل جتنی ہی چوڑائی اور اونچائی (ملی میٹر میں، مثلاً 40 × 30) کا کاغذ بنا کر محفوظ کریں۔',
+    xp3:'یہاں <b>پرنٹ</b> دبائیں۔ پرنٹ ونڈو میں Xprinter منتخب کریں، پھر <b>More settings</b> میں: کاغذ کا سائز = آپ کا بنایا ہوا کاغذ، حاشیے = <b>None</b>، اسکیل = <b>Default</b> یا 100، اور <b>Headers and footers</b> کا نشان ہٹا دیں۔',
+    xp4:'ایک <b>ٹیسٹ لیبل</b> پرنٹ کریں: فریم بالکل لیبل کے کناروں پر ہونا چاہیے۔ اگر کھسکا ہوا ہو تو پرنٹر کی کاغذ کیلیبریشن چلائیں (FEED بٹن اس وقت تک دبائے رکھیں جب تک لائٹ نہ ٹمٹمائے)۔',
+    xp5:'ہر نئے سائز کے لیے مرحلہ 2 صرف ایک بار دہرائیں؛ اس کے بعد براؤزر آپ کی ترتیبات یاد رکھتا ہے۔',
+    savedProducts:'محفوظ پروڈکٹس',searchPh:'نام یا کوڈ سے تلاش کریں',printSelected:'منتخب پرنٹ کریں',printSelectedN:'منتخب پرنٹ کریں ({n})',
+    exportBtn:'Excel میں ایکسپورٹ',importBtn:'Excel سے امپورٹ',selectAll:'سب منتخب کریں',selectRow:'منتخب کریں',
+    thCode:'کوڈ',thExp:'میعاد',thBatch:'بیچ',
+    regHint:'یہی کوڈ اپنے سیلز سسٹم میں درج کریں (آپ انہیں Excel میں ایکسپورٹ کر سکتے ہیں) تاکہ فروخت کے وقت بارکوڈ اسکینر پروڈکٹ پہچان لے۔ فہرست اسی کمپیوٹر کے اس براؤزر میں محفوظ ہوتی ہے، اس لیے بیک اپ کے لیے وقتاً فوقتاً Excel میں ایکسپورٹ کریں۔',
+    regEmpty:'ابھی کوئی پروڈکٹ محفوظ نہیں۔ فارم بھریں اور «پروڈکٹ محفوظ کریں» دبائیں، یا Excel سے فہرست امپورٹ کریں۔',regNoResults:'اس تلاش کا کوئی نتیجہ نہیں۔',
+    editBtn:'ترمیم',deleteBtn:'حذف کریں',confirmDelete:'حذف کرنے کی تصدیق',
+    valEmpty:'کوڈ لکھیں یا «نیا کوڈ» دبائیں۔',valEanDigits:'EAN-13 صرف 12 یا 13 ہندسے قبول کرتا ہے، حروف نہیں۔',
+    valEanCheck:'آخری ہندسہ (چیک ڈجٹ) غلط ہے۔ درست ہندسہ: {d}',
+    valCode128:'Code 128 صرف انگریزی حروف، ہندسے اور علامات قبول کرتا ہے۔ اردو حروف کے لیے QR استعمال کریں۔',
+    qrTooSmall:'QR کے خانے بہت چھوٹے ہیں ({mm} ملی میٹر)۔ بڑا لیبل یا چھوٹا کوڈ استعمال کریں۔',
+    barsTooThin:'بارکوڈ کی لکیریں بہت باریک ہیں ({mm} ملی میٹر) اور شاید اسکین نہ ہوں۔ چوڑا لیبل یا چھوٹا کوڈ منتخب کریں۔',
+    sizeOkQr:'QR خانے کا سائز {mm} ملی میٹر{dots}، اسکین کے لیے مناسب۔',sizeOkBar:'سب سے باریک لکیر {mm} ملی میٹر{dots}، اسکین کے لیے مناسب۔',dotsNote:' ({n} پرنٹ پوائنٹس)',
+    noValidLabel:'پرنٹ کے لیے کوئی درست لیبل نہیں',codeInUse:'یہ کوڈ کسی دوسری پروڈکٹ میں استعمال ہو رہا ہے',
+    productUpdated:'پروڈکٹ اپ ڈیٹ ہو گئی',productSaved:'پروڈکٹ محفوظ ہو گئی',productDeleted:'پروڈکٹ حذف ہو گئی',noProductsExport:'ایکسپورٹ کے لیے کوئی پروڈکٹ نہیں',
+    importDone:'{added} پروڈکٹس شامل کی گئیں',importSkipped:'، دہرائے گئے کوڈ والی {n} چھوڑ دی گئیں',
+    importFail:'فائل پڑھی نہیں جا سکی۔ یقینی بنائیں کہ یہ Excel یا CSV ہے اور اس میں «name» (یا «اسم المنتج») کالم ہے۔',
+    rotToastAuto:'پرنٹ ونڈو میں کاغذ کا سائز اور لے آؤٹ (عمودی یا افقی) منتخب کریں',rotToastOn:'لیبل گھما کر پرنٹ ہوگا؛ جانچ کے لیے ٹیسٹ لیبل پرنٹ کریں',rotToastOff:'لیبل کے سائز پر پرنٹ',
+    buyBtn:'خریدیں',helpTitle:'اپنا لائسنس خریدنا اور سنبھالنا',closeBtn:'بند کریں',helpGo:'خریداری جاری رکھیں',
+    helpIntro:'پہلے {limit} لیبل مفت ہیں۔ اس کے بعد {price} امریکی ڈالر کی ایک بار ادائیگی لامحدود پرنٹنگ کھول دیتی ہے۔',
+    helpA:'خریداری اور فعال کرنا',
+    helpA1:'«پیش نظارہ اور پرنٹ» حصے میں «ایک بار کی خریداری ({price} امریکی ڈالر)» دبائیں، یا اس ونڈو کے نیچے «خریداری جاری رکھیں» دبائیں۔',
+    helpA2:'آپ کو Stripe Checkout کے محفوظ ادائیگی صفحے پر لے جایا جاتا ہے۔ وہاں اپنا ای میل اور ادائیگی کی تفصیل درج کریں؛ ایپ آپ کے کارڈ کی تفصیل کبھی نہیں دیکھتی۔',
+    helpA3:'ادائیگی مکمل ہونے پر Stripe آپ کو ایپ پر واپس بھیجتا ہے۔ پھر ایپ سرور Stripe سے تصدیق کرتا ہے کہ ادائیگی واقعی کامیاب ہوئی، اور تب ہی اس ڈیوائس پر لائسنس فعال کرتا ہے۔',
+    helpA4:'صرف ادائیگی کا صفحہ کھولنا یا وہاں سے واپس آنا خود کچھ فعال نہیں کرتا۔ اگر ادائیگی کے بعد بھی ایپ مفت پلان دکھائے تو ایک منٹ انتظار کر کے صفحہ دوبارہ لوڈ کریں۔',
+    helpA5:'ادائیگی کی تصدیق ہوتے ہی آپ کے آرڈر حوالہ (PL-…) کے ساتھ تصدیقی ای میل اس پتے پر بھیجی جاتی ہے جو آپ نے ادائیگی کے وقت درج کیا تھا۔',
+    helpA6:'لائسنس اس ڈیوائس کے اسی براؤزر سے منسلک ہے۔ وہی براؤزر استعمال کرتے رہیں اور اس سائٹ کی کوکیز یا سائٹ ڈیٹا نہ مٹائیں؛ ورنہ ڈیوائس پہچانی نہیں جائے گی اور آپ کو نیچے بیان کردہ منتقلی کرنی ہوگی۔',
+    helpB:'اپنا خریداری کا ای میل محفوظ رکھیں',
+    helpB0:'ادائیگی کے وقت درج کیے گئے اسی ای میل پتے تک رسائی برقرار رکھیں، اور تصدیقی ای میل سنبھال کر رکھیں۔',
+    helpB1:'لائسنس کو دوسری ڈیوائس پر منتقل کرنے کے لیے اس ای میل پر بھیجا گیا تصدیقی کوڈ چاہیے۔ آپ کو وہ ان باکس کھول سکنا چاہیے؛ صرف پتہ جاننا کافی نہیں۔',
+    helpB2:'خریداری کا ای میل ایپ کے اندر سے تبدیل نہیں کیا جا سکتا۔',
+    helpB3:'اپنا آرڈر حوالہ سنبھال کر رکھیں؛ سپورٹ کو آپ کی خریداری پہچاننے کے لیے اس کی ضرورت ہوتی ہے۔',
+    helpC:'دوسری ڈیوائس پر منتقلی',
+    helpC0:'لائسنس ایک وقت میں صرف ایک ڈیوائس پر کام کرتا ہے۔ اسے کئی ڈیوائسز پر ایک ساتھ استعمال نہیں کیا جا سکتا۔',
+    helpC1:'نئی ڈیوائس پر ایپ اسی براؤزر میں کھولیں جسے آپ استعمال کریں گے۔ «پیش نظارہ اور پرنٹ» میں «لائسنس کسی دوسری ڈیوائس پر خریدا تھا؟ اسے یہاں منتقل کریں» کھولیں۔ (یہ تب ہی ظاہر ہوتا ہے جب ڈیوائس پہلے سے لائسنس یافتہ نہ ہو۔)',
+    helpC2:'اپنا خریداری کا ای میل درج کریں اور «تصدیقی کوڈ بھیجیں» دبائیں۔',
+    helpC3:'ای میل میں آیا 8 ہندسوں کا کوڈ اسی نئی ڈیوائس پر {minutes} منٹ کے اندر درج کریں۔ ہر کوڈ ایک ہی بار کام کرتا ہے اور {attempts} غلط کوششوں کے بعد بند ہو جاتا ہے۔',
+    helpC4:'«منتقلی کی تصدیق کریں» دبائیں اور انتباہ قبول کریں۔',
+    helpC5:'لائسنس فوراً نئی ڈیوائس پر چلا جاتا ہے اور پچھلی ڈیوائس پر کام کرنا بند کر دیتا ہے۔',
+    helpC6:'ہر لائسنس کے لیے صرف ایک منتقلی کی اجازت ہے۔ اس کے بعد لائسنس ایپ سے دوبارہ منتقل نہیں کیا جا سکتا۔',
+    helpD:'مسائل کا حل',
+    helpD1t:'خریداری کی تصدیقی ای میل نہیں آئی',helpD1:'اسپام یا جنک فولڈر دیکھیں۔ سرور چند گھنٹوں تک خودبخود دوبارہ بھیجنے کی کوشش کرتا ہے۔ ای میل دیر سے آئے تب بھی اس ڈیوائس پر آپ کا لائسنس کام کرتا ہے، اور آرڈر حوالہ لائسنس یافتہ ڈیوائس پر لائسنس کی تفصیل میں نظر آتا ہے۔',
+    helpD2t:'منتقلی کا کوڈ نہیں آیا',helpD2:'اسپام دیکھیں، اور یقینی بنائیں کہ آپ نے ادائیگی میں استعمال ہونے والا ای میل بالکل درست لکھا ہے۔ رازداری کے لیے ایپ وہی پیغام دکھاتی ہے، چاہے ای میل سے کوئی لائسنس منسلک ہو یا نہ ہو۔ ایک ہی ای میل کے لیے آپ ایک گھنٹے میں 3 بار تک کوڈ منگوا سکتے ہیں۔',
+    helpD3t:'کوڈ کی مدت ختم ہو گئی یا مسترد ہوا',helpD3:'نیا کوڈ منگوائیں اور تازہ ترین ای میل استعمال کریں؛ نئی درخواست اس ڈیوائس کے پرانے کوڈ منسوخ کر دیتی ہے۔',
+    helpD4t:'شاید میں نے مختلف ای میل استعمال کیا',helpD4:'لائسنس والی ڈیوائس پر لائسنس کی تفصیل میں خریداری کے ای میل کا کچھ حصہ دکھایا جاتا ہے (مثلاً pe***@e***.com)۔ اس سے مطابقت رکھنے والا پورا پتہ استعمال کریں۔',
+    helpD5t:'«منتقلی دستیاب نہیں»',helpD5:'یہ تب ہوتا ہے جب واحد منتقلی پہلے ہی استعمال ہو چکی ہو، ادائیگی کی رقم واپس ہو گئی ہو یا تنازع میں ہو، یا سرور ای میل نہ بھیج پا رہا ہو۔ اگر ای میل کسی خریداری سے منسلک ہے تو آپ کو وجہ بتانے والی ای میل ملے گی۔',
+    supportWithEmail:'مدد چاہیے؟ {email} سے رابطہ کریں اور اپنا آرڈر حوالہ بتائیں۔',supportNoEmail:'مدد چاہیے؟ اپنی خریداری کی تصدیقی ای میل کا جواب دیں اور اپنا آرڈر حوالہ بتائیں۔'},
+  ru:{saved:'Сохранено на этом устройстве',saveFailed:'Не удалось сохранить в браузере. Экспортируйте в Excel для резервной копии.',
+    typeCode128:'Формирует код из сокращения названия товара и уникального номера; читается большинством сканеров.',
+    typeEan:'EAN-13 содержит только цифры; название товара в него не включить. Сгенерированный номер — для внутреннего использования.',
+    typeQr:'Сохраняет название товара в коде как есть, с уникальным номером; нужен 2D-сканер.',
+    statusDup:'Этот код уже используется другим сохранённым товаром. Нажмите «Новый код», чтобы избежать повторов.',
+    freePlan:'Бесплатный план',freeRemaining:'Осталось {n} из {limit} бесплатных этикеток.',
+    lockedPlan:'Бесплатный лимит исчерпан. Разблокируйте приложение за {price} $ (USD), чтобы продолжить.',
+    unlockBtn:'Разовая покупка ({price} $ USD)',unlockNeeded:'Бесплатные этикетки закончились. Купите разблокировку, чтобы продолжить.',
+    unlockSuccess:'Покупка подтверждена. Приложение разблокировано.',
+    unlockFail:'Не удалось начать или подтвердить покупку. Попробуйте позже.',
+    serviceUnavailable:'Для учёта этикеток и проверки покупок нужно подключение к серверу приложения.',
+    unlockedTitle:'Разблокировано',unlimited:'Безлимитные этикетки включены.',
+    licenseActive:'Лицензия активна только на этом устройстве. Email покупки: {email} · Номер заказа: {ref} · Осталось переносов: {left} из {limit}.',
+    licenseInactive:'Лицензия, привязанная к этому устройству, неактивна (возврат средств или спор). Номер заказа: {ref}.',
+    licenseMoved:'Лицензия с этого устройства перенесена на другое устройство.',
+    transferSummary:'Купили лицензию на другом устройстве? Перенесите её сюда',
+    transferHelp:'Введите email, указанный при покупке. Если лицензию можно перенести, мы отправим на него код подтверждения. Лицензию можно перенести только один раз.',
+    transferEmailLabel:'Email покупки',transferRequestBtn:'Отправить код подтверждения',
+    transferWarning:'Внимание: перенос отключает лицензию на прежнем устройстве и расходует единственный разрешённый перенос.',
+    transferCodeLabel:'Код подтверждения (8 цифр)',transferConfirmBtn:'Подтвердить перенос',
+    transferSent:'Если этот email связан с лицензией, которую можно перенести, на него отправляется код, действующий {minutes} минут. Проверьте также папку «Спам».',
+    transferConfirmPrompt:'Прежнее устройство потеряет лицензию, а ваш единственный перенос будет израсходован. Продолжить?',
+    transferDone:'Лицензия перенесена на это устройство и отключена на прежнем.',
+    err_invalid_email:'Введите корректный адрес email.',
+    err_email_unavailable:'Отправка писем не настроена, поэтому сейчас перенести лицензию нельзя.',
+    err_rate_limited:'Слишком много попыток. Подождите час и попробуйте снова.',
+    err_already_licensed:'На этом устройстве уже есть лицензия.',
+    err_invalid_code:'Код подтверждения состоит из 8 цифр.',
+    err_verification_failed:'Код неверный, истёк или уже использован. Запросите новый код.',
+    err_transfer_used:'Единственный перенос этой лицензии уже использован. Обратитесь в поддержку, указав номер заказа.',
+    err_license_unavailable:'Эта лицензия неактивна (возврат средств или спор) и не может быть перенесена.',
+    transferFail:'Не удалось выполнить запрос. Попробуйте позже.',
+    langLabel:'Язык',themeLabel:'Тема',
+    appTitle:'Этикетки для товаров',appTagline:'Создавайте и печатайте этикетки со штрихкодом и QR для любых товаров',
+    themeSystem:'Как в системе',themeLight:'Светлая',themeDark:'Тёмная',
+    newProduct:'Новый товар',fName:'Название товара',fPrice:'Цена',fCurrency:'Валюта',currencyPh:'напр. ₽ или руб.',
+    codeLabel:'Значение штрихкода',newCodeBtn:'Новый код',newCodeTitle:'Сгенерировать новый серийный номер',
+    fExp:'Срок годности',fExpHint:'(необязательно, напр. продукты и лекарства)',fBatch:'Номер партии',optional:'(необязательно)',
+    saveBtn:'Сохранить товар',saveEditBtn:'Сохранить изменения',editingTitle:'Редактирование: {name}',
+    codeType:'Тип кода',onLabel:'Что показывать на этикетке',showName:'Название',showCode:'Цифры под штрихкодом',fontSize:'Размер шрифта:',
+    autoNumbering:'Автонумерация',nextNumber:'Следующий номер',
+    autoNumberingHint:'В Code 128 и QR код автоматически составляется из сокращения названия товара и уникального серийного номера. EAN-13 принимает только цифры и использует внутренний диапазон, начинающийся с 200.',
+    previewPrint:'Предпросмотр и печать',labelSize:'Размер этикетки',widthMm:'Ширина (мм)',heightMm:'Высота (мм)',
+    presetMm:'{w} × {h} мм',presetCustom:'Свой размер',
+    copies:'Копии',printerDpi:'Разрешение принтера',printDir:'Ориентация печати',
+    rotNormal:'Обычная',rot90:'Повернуть на 90° вправо',rot270:'Повернуть на 90° влево',rotAuto:'По бумаге принтера',
+    printBtn:'Печать',testBtn:'Тестовая этикетка',testLabelName:'Тестовая этикетка {size}',sampleName:'Оливковое масло',
+    xpTitle:'Первая настройка Xprinter',
+    xp1:'В Windows откройте <b>Устройства и принтеры</b>, щёлкните правой кнопкой по Xprinter и выберите <b>Настройка печати</b>.',
+    xp2:'В <b>Page Setup</b> нажмите <b>New</b> и создайте бумагу той же ширины и высоты, что и этикетка, в мм (например 40 × 30), затем сохраните.',
+    xp3:'Нажмите здесь <b>Печать</b>. В окне печати выберите Xprinter, затем в <b>Дополнительных настройках</b>: размер бумаги = созданная вами бумага, поля = <b>Нет</b>, масштаб = <b>По умолчанию</b> или 100, и снимите флажок <b>Верхние и нижние колонтитулы</b>.',
+    xp4:'Напечатайте <b>Тестовую этикетку</b>: рамка должна точно совпасть с краями этикетки. Если она смещена, выполните калибровку бумаги на принтере (удерживайте кнопку FEED, пока индикатор не замигает).',
+    xp5:'Для каждого нового размера повторите шаг 2 только один раз; после этого браузер запомнит настройки.',
+    savedProducts:'Сохранённые товары',searchPh:'Поиск по названию или коду',printSelected:'Печать выбранных',printSelectedN:'Печать выбранных ({n})',
+    exportBtn:'Экспорт в Excel',importBtn:'Импорт из Excel',selectAll:'Выбрать все',selectRow:'Выбрать',
+    thCode:'Код',thExp:'Годен до',thBatch:'Партия',
+    regHint:'Внесите те же коды в свою кассовую систему (их можно экспортировать в Excel), чтобы сканер распознавал товар при продаже. Список хранится в этом браузере на этом компьютере, поэтому время от времени экспортируйте его в Excel как резервную копию.',
+    regEmpty:'Сохранённых товаров пока нет. Заполните форму и нажмите «Сохранить товар» или импортируйте список из Excel.',regNoResults:'По этому запросу ничего не найдено.',
+    editBtn:'Изменить',deleteBtn:'Удалить',confirmDelete:'Подтвердить удаление',
+    valEmpty:'Введите код или нажмите «Новый код».',valEanDigits:'EAN-13 принимает только 12 или 13 цифр, без букв.',
+    valEanCheck:'Последняя цифра (контрольная) неверна. Правильная: {d}',
+    valCode128:'Code 128 принимает только латинские буквы, цифры и символы. Для кириллицы используйте QR.',
+    qrTooSmall:'Модули QR слишком малы ({mm} мм). Возьмите этикетку больше или код короче.',
+    barsTooThin:'Штрихи слишком тонкие ({mm} мм) и могут не считываться. Выберите этикетку шире или код короче.',
+    sizeOkQr:'Модуль QR {mm} мм{dots}, подходит для сканирования.',sizeOkBar:'Самый тонкий штрих {mm} мм{dots}, подходит для сканирования.',dotsNote:' ({n} точек печати)',
+    noValidLabel:'Нет корректных этикеток для печати',codeInUse:'Этот код используется другим товаром',
+    productUpdated:'Товар обновлён',productSaved:'Товар сохранён',productDeleted:'Товар удалён',noProductsExport:'Нет товаров для экспорта',
+    importDone:'Добавлено товаров: {added}',importSkipped:', пропущено с повторяющимися кодами: {n}',
+    importFail:'Не удалось прочитать файл. Убедитесь, что это Excel или CSV со столбцом «name» (или «اسم المنتج»).',
+    rotToastAuto:'Выберите размер бумаги и ориентацию (книжная или альбомная) в окне печати',rotToastOn:'Этикетка будет напечатана с поворотом; напечатайте тестовую этикетку для проверки',rotToastOff:'Печать в размер этикетки',
+    buyBtn:'Купить',helpTitle:'Покупка и управление лицензией',closeBtn:'Закрыть',helpGo:'Перейти к покупке',
+    helpIntro:'Первые {limit} этикеток бесплатны. Затем разовый платёж {price} $ (USD) открывает безлимитную печать.',
+    helpA:'Покупка и активация',
+    helpA1:'Нажмите «Разовая покупка ({price} $ USD)» в разделе «Предпросмотр и печать» или «Перейти к покупке» внизу этого окна.',
+    helpA2:'Вы перейдёте на защищённую страницу оплаты Stripe Checkout. Введите там email и платёжные данные; приложение никогда не видит данные вашей карты.',
+    helpA3:'Когда оплата завершена, Stripe возвращает вас в приложение. Затем сервер приложения проверяет у Stripe, что платёж действительно прошёл, и только после этого активирует лицензию на этом устройстве.',
+    helpA4:'Само по себе открытие страницы оплаты или возврат с неё ничего не активирует. Если после оплаты приложение всё ещё показывает бесплатный план, подождите минуту и обновите страницу.',
+    helpA5:'После подтверждения платежа на email, указанный при оплате, отправляется письмо с номером заказа (PL-…).',
+    helpA6:'Лицензия привязана к этому браузеру на этом устройстве. Пользуйтесь тем же браузером и не удаляйте cookie и данные этого сайта; иначе устройство перестанет распознаваться и понадобится перенос, описанный ниже.',
+    helpB:'Сохраните email покупки',
+    helpB0:'Сохраняйте доступ к тому же адресу email, который вы указали при оплате, и не удаляйте письмо с подтверждением.',
+    helpB1:'Для переноса лицензии на другое устройство нужен код подтверждения, отправленный на этот email. Вы должны иметь доступ к этому почтовому ящику; одного знания адреса недостаточно.',
+    helpB2:'Email покупки нельзя изменить в приложении.',
+    helpB3:'Сохраните номер заказа; он нужен поддержке, чтобы найти вашу покупку.',
+    helpC:'Перенос на другое устройство',
+    helpC0:'Лицензия работает на одном устройстве в каждый момент времени. Её нельзя использовать на нескольких устройствах одновременно.',
+    helpC1:'На новом устройстве откройте приложение в том браузере, которым будете пользоваться. В разделе «Предпросмотр и печать» откройте «Купили лицензию на другом устройстве? Перенесите её сюда». (Пункт виден, только если на устройстве ещё нет лицензии.)',
+    helpC2:'Введите email покупки и нажмите «Отправить код подтверждения».',
+    helpC3:'Введите 8-значный код из письма на этом же новом устройстве в течение {minutes} минут. Каждый код действует один раз и перестаёт работать после {attempts} неверных попыток.',
+    helpC4:'Нажмите «Подтвердить перенос» и примите предупреждение.',
+    helpC5:'Лицензия сразу переходит на новое устройство и перестаёт работать на прежнем.',
+    helpC6:'Для каждой лицензии разрешён только один перенос. После него лицензию нельзя снова перенести из приложения.',
+    helpD:'Устранение неполадок',
+    helpD1t:'Не пришло письмо с подтверждением покупки',helpD1:'Проверьте папку «Спам». Сервер автоматически повторяет отправку в течение нескольких часов. Лицензия работает на этом устройстве, даже если письмо задерживается, а номер заказа виден в сведениях о лицензии на лицензированном устройстве.',
+    helpD2t:'Не пришёл код переноса',helpD2:'Проверьте «Спам» и убедитесь, что ввели в точности тот email, который указали при оплате. В целях конфиденциальности приложение показывает одно и то же сообщение независимо от того, есть ли у email лицензия. Для одного email можно запросить код до 3 раз в час.',
+    helpD3t:'Код истёк или отклонён',helpD3:'Запросите новый код и используйте самое свежее письмо; новый запрос отменяет прежние коды на этом устройстве.',
+    helpD4t:'Возможно, я указал другой email',helpD4:'На устройстве с лицензией в сведениях о лицензии видна часть email покупки (например pe***@e***.com). Используйте полный адрес, который ему соответствует.',
+    helpD5t:'«Перенос недоступен»',helpD5:'Так бывает, если единственный перенос уже использован, если по платежу был возврат или открыт спор, либо если сервер не может отправлять письма. Если email связан с покупкой, вы получите письмо с объяснением причины.',
+    supportWithEmail:'Нужна помощь? Напишите на {email} и укажите номер заказа.',supportNoEmail:'Нужна помощь? Ответьте на письмо с подтверждением покупки и укажите номер заказа.'},
+  ja:{saved:'この端末に保存しました',saveFailed:'ブラウザに保存できませんでした。バックアップとして Excel に書き出してください。',
+    typeCode128:'商品名の略称と固有番号からコードを作成します。ほとんどのスキャナーで読み取れます。',
+    typeEan:'EAN-13 は数字のみで、商品名は含められません。生成される番号は社内用です。',
+    typeQr:'商品名をそのまま固有番号と一緒にコードに含めます。2D スキャナーが必要です。',
+    statusDup:'このコードは保存済みの別の商品で使われています。重複を避けるには「新しいコード」を押してください。',
+    freePlan:'無料プラン',freeRemaining:'無料ラベル残り {n} / {limit} 枚。',
+    lockedPlan:'無料枠を使い切りました。続けるには {price} 米ドルでアプリのロックを解除してください。',
+    unlockBtn:'買い切り購入（{price} 米ドル）',unlockNeeded:'無料ラベルを使い切りました。続けるにはロック解除を購入してください。',
+    unlockSuccess:'購入を確認しました。アプリのロックを解除しました。',
+    unlockFail:'購入を開始または確認できませんでした。後でもう一度お試しください。',
+    serviceUnavailable:'ラベルの記録と購入の確認にはアプリのサーバーへの接続が必要です。',
+    unlockedTitle:'解除済み',unlimited:'ラベルを無制限に使えます。',
+    licenseActive:'ライセンスはこの端末でのみ有効です。購入メール：{email} · 注文番号：{ref} · 残りの移行回数：{left} / {limit}。',
+    licenseInactive:'この端末に紐づくライセンスは無効です（返金済みまたは異議申し立て中）。注文番号：{ref}。',
+    licenseMoved:'この端末にあったライセンスは別の端末に移行されました。',
+    transferSummary:'別の端末でライセンスを購入しましたか？ここに移行できます',
+    transferHelp:'購入時のメールアドレスを入力してください。ライセンスを移行できる場合、そのアドレスに確認コードを送ります。ライセンスの移行は 1 回だけです。',
+    transferEmailLabel:'購入メール',transferRequestBtn:'確認コードを送信',
+    transferWarning:'注意：移行すると以前の端末のライセンスは無効になり、1 回だけの移行を使い切ります。',
+    transferCodeLabel:'確認コード（8 桁）',transferConfirmBtn:'移行を確定',
+    transferSent:'このメールアドレスが移行可能なライセンスに紐づいている場合、{minutes} 分間有効なコードを送信しています。迷惑メールフォルダーも確認してください。',
+    transferConfirmPrompt:'以前の端末はライセンスを失い、1 回だけの移行を使い切ります。続けますか？',
+    transferDone:'ライセンスをこの端末に移行し、以前の端末では無効にしました。',
+    err_invalid_email:'有効なメールアドレスを入力してください。',
+    err_email_unavailable:'メール送信が設定されていないため、現在ライセンスを移行できません。',
+    err_rate_limited:'試行回数が多すぎます。1 時間待ってから再度お試しください。',
+    err_already_licensed:'この端末はすでにライセンスがあります。',
+    err_invalid_code:'確認コードは 8 桁の数字です。',
+    err_verification_failed:'コードが間違っているか、期限切れか、すでに使用されています。新しいコードを請求してください。',
+    err_transfer_used:'このライセンスの移行はすでに使用済みです。注文番号を添えてサポートにお問い合わせください。',
+    err_license_unavailable:'このライセンスは無効（返金済みまたは異議申し立て中）のため移行できません。',
+    transferFail:'リクエストを完了できませんでした。後でもう一度お試しください。',
+    langLabel:'言語',themeLabel:'テーマ',
+    appTitle:'商品ラベル',appTagline:'あらゆる商品のバーコード・QR ラベルを作成して印刷',
+    themeSystem:'システムに合わせる',themeLight:'ライト',themeDark:'ダーク',
+    newProduct:'新しい商品',fName:'商品名',fPrice:'価格',fCurrency:'通貨',currencyPh:'例：円 または ¥',
+    codeLabel:'バーコードの値',newCodeBtn:'新しいコード',newCodeTitle:'新しい連番を生成',
+    fExp:'有効期限',fExpHint:'（任意。食品や医薬品など）',fBatch:'ロット番号',optional:'（任意）',
+    saveBtn:'商品を保存',saveEditBtn:'変更を保存',editingTitle:'編集中：{name}',
+    codeType:'コードの種類',onLabel:'ラベルに表示する項目',showName:'名前',showCode:'バーコード下の数字',fontSize:'文字サイズ：',
+    autoNumbering:'自動採番',nextNumber:'次の番号',
+    autoNumberingHint:'Code 128 と QR では、商品名の略称と固有の連番からコードが自動で作られます。EAN-13 は数字のみで、200 から始まる社内用の範囲を使います。',
+    previewPrint:'プレビューと印刷',labelSize:'ラベルサイズ',widthMm:'幅（mm）',heightMm:'高さ（mm）',
+    presetMm:'{w} × {h} mm',presetCustom:'カスタムサイズ',
+    copies:'枚数',printerDpi:'プリンター解像度',printDir:'印刷の向き',
+    rotNormal:'標準',rot90:'右に 90° 回転',rot270:'左に 90° 回転',rotAuto:'プリンターの用紙に合わせる',
+    printBtn:'印刷',testBtn:'テストラベル',testLabelName:'テストラベル {size}',sampleName:'オリーブオイル',
+    xpTitle:'Xprinter の初回設定',
+    xp1:'Windows で<b>デバイスとプリンター</b>を開き、Xprinter を右クリックして<b>印刷設定</b>を選びます。',
+    xp2:'<b>Page Setup</b> で <b>New</b> を押し、ラベルと同じ幅と高さ（mm、例 40 × 30）の用紙を作成して保存します。',
+    xp3:'ここで<b>印刷</b>を押します。印刷ダイアログで Xprinter を選び、<b>詳細設定</b>で：用紙サイズ = 作成した用紙、余白 = <b>なし</b>、倍率 = <b>デフォルト</b>または 100 にし、<b>ヘッダーとフッター</b>のチェックを外します。',
+    xp4:'<b>テストラベル</b>を印刷します。枠がラベルの縁にぴったり重なれば OK です。ずれている場合はプリンターの用紙キャリブレーションを行ってください（ランプが点滅するまで FEED ボタンを長押し）。',
+    xp5:'新しいサイズごとに手順 2 を 1 回だけ行えば、以降はブラウザーが設定を記憶します。',
+    savedProducts:'保存した商品',searchPh:'名前またはコードで検索',printSelected:'選択を印刷',printSelectedN:'選択を印刷（{n}）',
+    exportBtn:'Excel に書き出し',importBtn:'Excel から読み込み',selectAll:'すべて選択',selectRow:'選択',
+    thCode:'コード',thExp:'期限',thBatch:'ロット',
+    regHint:'レジシステムにも同じコードを登録してください（Excel に書き出せます）。そうすれば販売時にスキャナーが商品を認識します。リストはこのパソコンのこのブラウザーに保存されるので、ときどき Excel に書き出してバックアップしてください。',
+    regEmpty:'保存した商品はまだありません。フォームに入力して「商品を保存」を押すか、Excel からリストを読み込んでください。',regNoResults:'この検索に一致する結果はありません。',
+    editBtn:'編集',deleteBtn:'削除',confirmDelete:'削除を確定',
+    valEmpty:'コードを入力するか「新しいコード」を押してください。',valEanDigits:'EAN-13 は 12 桁または 13 桁の数字のみで、文字は使えません。',
+    valEanCheck:'最後の桁（チェックディジット）が正しくありません。正しくは：{d}',
+    valCode128:'Code 128 は英字・数字・記号のみ使えます。日本語などの文字には QR を使ってください。',
+    qrTooSmall:'QR のセルが小さすぎます（{mm} mm）。大きいラベルか短いコードを使ってください。',
+    barsTooThin:'バーが細すぎて（{mm} mm）読み取れないおそれがあります。幅の広いラベルか短いコードを選んでください。',
+    sizeOkQr:'QR のセルサイズ {mm} mm{dots}、読み取りに適しています。',sizeOkBar:'最も細いバー {mm} mm{dots}、読み取りに適しています。',dotsNote:'（印刷ドット {n} 個）',
+    noValidLabel:'印刷できる有効なラベルがありません',codeInUse:'このコードは別の商品で使われています',
+    productUpdated:'商品を更新しました',productSaved:'商品を保存しました',productDeleted:'商品を削除しました',noProductsExport:'書き出す商品がありません',
+    importDone:'{added} 件の商品を追加しました',importSkipped:'、重複コードの {n} 件をスキップしました',
+    importFail:'ファイルを読み込めませんでした。Excel または CSV で、「name」（または «اسم المنتج»）列があるか確認してください。',
+    rotToastAuto:'印刷ダイアログで用紙サイズとレイアウト（縦・横）を選んでください',rotToastOn:'ラベルは回転して印刷されます。テストラベルで確認してください',rotToastOff:'ラベルサイズで印刷',
+    buyBtn:'購入',helpTitle:'ライセンスの購入と管理',closeBtn:'閉じる',helpGo:'購入に進む',
+    helpIntro:'最初の {limit} 枚のラベルは無料です。その後は {price} 米ドルの買い切りで無制限に印刷できます。',
+    helpA:'購入と有効化',
+    helpA1:'「プレビューと印刷」の「買い切り購入（{price} 米ドル）」を押すか、このウィンドウ下部の「購入に進む」を押します。',
+    helpA2:'安全な Stripe Checkout の支払いページに移動します。そこでメールアドレスと支払い情報を入力してください。アプリがカード情報を見ることはありません。',
+    helpA3:'支払いが完了すると Stripe からアプリに戻ります。その後アプリのサーバーが Stripe に支払いの成功を確認し、そのときに初めてこの端末でライセンスが有効になります。',
+    helpA4:'支払いページを開いたり戻ったりするだけでは何も有効になりません。支払い後もアプリが無料プランのままなら、1 分待ってからページを再読み込みしてください。',
+    helpA5:'支払いが確認されると、注文番号（PL-…）を記載した確認メールが、支払い時に入力したアドレスに送信されます。',
+    helpA6:'ライセンスはこの端末のこのブラウザーに紐づいています。同じブラウザーを使い続け、このサイトの Cookie やサイトデータを消去しないでください。消去すると端末が認識されなくなり、下記の移行が必要になります。',
+    helpB:'購入メールを保管する',
+    helpB0:'支払い時に入力したメールアドレスを使える状態に保ち、確認メールを保管してください。',
+    helpB1:'ライセンスを別の端末に移行するには、そのアドレスに送られる確認コードが必要です。その受信トレイを開けることが必要で、アドレスを知っているだけでは不十分です。',
+    helpB2:'購入メールはアプリ内で変更できません。',
+    helpB3:'注文番号を保管してください。サポートが購入を確認するのに必要です。',
+    helpC:'別の端末への移行',
+    helpC0:'ライセンスは同時に 1 台の端末でのみ使えます。複数の端末で同時に使うことはできません。',
+    helpC1:'新しい端末で、今後使うブラウザーでアプリを開きます。「プレビューと印刷」で「別の端末でライセンスを購入しましたか？ここに移行できます」を開きます。（端末にまだライセンスがない場合にのみ表示されます。）',
+    helpC2:'購入メールを入力し、「確認コードを送信」を押します。',
+    helpC3:'メールに届いた 8 桁のコードを、同じ新しい端末で {minutes} 分以内に入力します。各コードは 1 回だけ使え、{attempts} 回間違えると無効になります。',
+    helpC4:'「移行を確定」を押し、警告を承認します。',
+    helpC5:'ライセンスはすぐに新しい端末に移り、以前の端末では使えなくなります。',
+    helpC6:'移行は 1 ライセンスにつき 1 回だけです。使用後はアプリから再び移行することはできません。',
+    helpD:'トラブルシューティング',
+    helpD1t:'購入確認メールが届かない',helpD1:'迷惑メールフォルダーを確認してください。サーバーは数時間にわたり自動で再送を試みます。メールが遅れてもこの端末のライセンスは使え、注文番号はライセンスのある端末のライセンス情報に表示されます。',
+    helpD2t:'移行コードが届かない',helpD2:'迷惑メールを確認し、支払い時と同じメールアドレスを正確に入力したか確かめてください。プライバシー保護のため、アドレスにライセンスがあってもなくても同じメッセージが表示されます。同じアドレスでコードを請求できるのは 1 時間に 3 回までです。',
+    helpD3t:'コードが期限切れ、または拒否された',helpD3:'新しいコードを請求し、最新のメールを使ってください。新しい請求をすると、この端末での以前のコードは無効になります。',
+    helpD4t:'別のメールアドレスを使ったかもしれない',helpD4:'ライセンスのある端末では、ライセンス情報に購入メールの一部が表示されます（例：pe***@e***.com）。それに一致する完全なアドレスを使ってください。',
+    helpD5t:'「移行できません」',helpD5:'1 回だけの移行をすでに使った場合、支払いが返金済みまたは異議申し立て中の場合、またはサーバーがメールを送れない場合に表示されます。アドレスが購入に紐づいていれば、理由を説明するメールが届きます。',
+    supportWithEmail:'お困りですか？注文番号を添えて {email} までご連絡ください。',supportNoEmail:'お困りですか？購入確認メールに返信し、注文番号をお知らせください。'},
+  de:{saved:'Auf diesem Gerät gespeichert',saveFailed:'Speichern im Browser fehlgeschlagen. Exportieren Sie zur Sicherung nach Excel.',
+    typeCode128:'Erzeugt den Code aus einer Abkürzung des Produktnamens und einer eindeutigen Nummer; von den meisten Scannern lesbar.',
+    typeEan:'EAN-13 enthält nur Ziffern; der Produktname kann nicht enthalten sein. Die erzeugte Nummer ist für den internen Gebrauch.',
+    typeQr:'Behält den Produktnamen unverändert im Code, mit einer eindeutigen Nummer; erfordert einen 2D-Scanner.',
+    statusDup:'Dieser Code wird bereits von einem anderen gespeicherten Produkt verwendet. Klicken Sie auf „Neuer Code“, um Doppelungen zu vermeiden.',
+    freePlan:'Gratis-Tarif',freeRemaining:'Noch {n} von {limit} kostenlosen Etiketten.',
+    lockedPlan:'Kontingent aufgebraucht. Schalten Sie die App für {price} US-$ frei, um weiterzumachen.',
+    unlockBtn:'Einmalkauf ({price} US-$)',unlockNeeded:'Die kostenlosen Etiketten sind aufgebraucht. Kaufen Sie die Freischaltung, um fortzufahren.',
+    unlockSuccess:'Kauf bestätigt. App freigeschaltet.',
+    unlockFail:'Der Kauf konnte nicht gestartet oder bestätigt werden. Bitte später erneut versuchen.',
+    serviceUnavailable:'Zum Erfassen von Etiketten und Prüfen von Käufen ist eine Verbindung zum App-Server nötig.',
+    unlockedTitle:'Freigeschaltet',unlimited:'Unbegrenzte Etiketten aktiviert.',
+    licenseActive:'Lizenz nur auf diesem Gerät aktiv. Kauf-E-Mail: {email} · Referenz: {ref} · Verbleibende Übertragungen: {left} von {limit}.',
+    licenseInactive:'Die mit diesem Gerät verknüpfte Lizenz ist nicht aktiv (erstattet oder angefochten). Referenz: {ref}.',
+    licenseMoved:'Die Lizenz dieses Geräts wurde auf ein anderes Gerät übertragen.',
+    transferSummary:'Lizenz auf einem anderen Gerät gekauft? Hierher übertragen',
+    transferHelp:'Geben Sie die beim Kauf verwendete E-Mail ein. Wenn die Lizenz übertragbar ist, senden wir einen Bestätigungscode dorthin. Eine Lizenz kann nur einmal übertragen werden.',
+    transferEmailLabel:'Kauf-E-Mail',transferRequestBtn:'Bestätigungscode senden',
+    transferWarning:'Achtung: Die Übertragung deaktiviert die Lizenz auf dem bisherigen Gerät und verbraucht die einzige erlaubte Übertragung.',
+    transferCodeLabel:'Bestätigungscode (8 Ziffern)',transferConfirmBtn:'Übertragung bestätigen',
+    transferSent:'Falls diese E-Mail zu einer übertragbaren Lizenz gehört, ist ein {minutes} Minuten gültiger Code unterwegs. Prüfen Sie auch den Spam-Ordner.',
+    transferConfirmPrompt:'Das bisherige Gerät verliert die Lizenz und Ihre einzige Übertragung wird verbraucht. Fortfahren?',
+    transferDone:'Lizenz auf dieses Gerät übertragen und auf dem bisherigen deaktiviert.',
+    err_invalid_email:'Geben Sie eine gültige E-Mail-Adresse ein.',
+    err_email_unavailable:'Der E-Mail-Versand ist nicht eingerichtet, daher können Lizenzen derzeit nicht übertragen werden.',
+    err_rate_limited:'Zu viele Versuche. Warten Sie eine Stunde und versuchen Sie es erneut.',
+    err_already_licensed:'Dieses Gerät ist bereits lizenziert.',
+    err_invalid_code:'Der Bestätigungscode hat 8 Ziffern.',
+    err_verification_failed:'Der Code ist falsch, abgelaufen oder bereits verwendet. Fordern Sie einen neuen Code an.',
+    err_transfer_used:'Die einzige Übertragung dieser Lizenz wurde bereits genutzt. Wenden Sie sich mit Ihrer Bestellreferenz an den Support.',
+    err_license_unavailable:'Diese Lizenz ist nicht aktiv (erstattet oder angefochten) und kann nicht übertragen werden.',
+    transferFail:'Die Anfrage konnte nicht abgeschlossen werden. Bitte später erneut versuchen.',
+    langLabel:'Sprache',themeLabel:'Design',
+    appTitle:'Produktetiketten',appTagline:'Barcode- und QR-Etiketten für alle Arten von Produkten erstellen und drucken',
+    themeSystem:'Wie System',themeLight:'Hell',themeDark:'Dunkel',
+    newProduct:'Neues Produkt',fName:'Produktname',fPrice:'Preis',fCurrency:'Währung',currencyPh:'z. B. € oder CHF',
+    codeLabel:'Barcode-Wert',newCodeBtn:'Neuer Code',newCodeTitle:'Neue Seriennummer erzeugen',
+    fExp:'Ablaufdatum',fExpHint:'(optional, z. B. Lebensmittel und Arzneimittel)',fBatch:'Chargennummer',optional:'(optional)',
+    saveBtn:'Produkt speichern',saveEditBtn:'Änderungen speichern',editingTitle:'Bearbeiten: {name}',
+    codeType:'Codetyp',onLabel:'Auf dem Etikett anzeigen',showName:'Name',showCode:'Nummer unter dem Barcode',fontSize:'Schriftgröße:',
+    autoNumbering:'Automatische Nummerierung',nextNumber:'Nächste Nummer',
+    autoNumberingHint:'Bei Code 128 und QR wird der Code automatisch aus einer Abkürzung des Produktnamens und einer eindeutigen Seriennummer gebildet. EAN-13 akzeptiert nur Ziffern und nutzt einen internen Bereich, der mit 200 beginnt.',
+    previewPrint:'Vorschau und Druck',labelSize:'Etikettengröße',widthMm:'Breite (mm)',heightMm:'Höhe (mm)',
+    presetMm:'{w} × {h} mm',presetCustom:'Eigene Größe',
+    copies:'Exemplare',printerDpi:'Druckerauflösung',printDir:'Druckausrichtung',
+    rotNormal:'Normal',rot90:'90° nach rechts drehen',rot270:'90° nach links drehen',rotAuto:'Wie Druckerpapier',
+    printBtn:'Drucken',testBtn:'Testetikett',testLabelName:'Testetikett {size}',sampleName:'Olivenöl',
+    xpTitle:'Xprinter erstmals einrichten',
+    xp1:'Öffnen Sie in Windows <b>Geräte und Drucker</b>, klicken Sie mit der rechten Maustaste auf Xprinter und wählen Sie <b>Druckeinstellungen</b>.',
+    xp2:'Klicken Sie unter <b>Page Setup</b> auf <b>New</b>, legen Sie ein Papier mit derselben Breite und Höhe wie das Etikett in mm an (z. B. 40 × 30) und speichern Sie es.',
+    xp3:'Klicken Sie hier auf <b>Drucken</b>. Wählen Sie im Druckdialog Xprinter und unter <b>Weitere Einstellungen</b>: Papierformat = Ihr angelegtes Papier, Ränder = <b>Keine</b>, Skalierung = <b>Standard</b> oder 100, und deaktivieren Sie <b>Kopf- und Fußzeilen</b>.',
+    xp4:'Drucken Sie ein <b>Testetikett</b>: Der Rahmen muss genau auf den Etikettenkanten liegen. Ist er verschoben, kalibrieren Sie das Papier am Drucker (FEED-Taste gedrückt halten, bis die Anzeige blinkt).',
+    xp5:'Wiederholen Sie Schritt 2 nur einmal pro neuer Größe; danach merkt sich der Browser Ihre Einstellungen.',
+    savedProducts:'Gespeicherte Produkte',searchPh:'Nach Name oder Code suchen',printSelected:'Auswahl drucken',printSelectedN:'Auswahl drucken ({n})',
+    exportBtn:'Nach Excel exportieren',importBtn:'Aus Excel importieren',selectAll:'Alle auswählen',selectRow:'Auswählen',
+    thCode:'Code',thExp:'Ablauf',thBatch:'Charge',
+    regHint:'Tragen Sie dieselben Codes in Ihr Kassensystem ein (Sie können sie nach Excel exportieren), damit der Scanner das Produkt beim Verkauf erkennt. Die Liste wird in diesem Browser auf diesem Computer gespeichert; exportieren Sie sie daher regelmäßig nach Excel als Sicherung.',
+    regEmpty:'Noch keine Produkte gespeichert. Füllen Sie das Formular aus und klicken Sie auf „Produkt speichern“, oder importieren Sie eine Liste aus Excel.',regNoResults:'Keine Ergebnisse für diese Suche.',
+    editBtn:'Bearbeiten',deleteBtn:'Löschen',confirmDelete:'Löschen bestätigen',
+    valEmpty:'Geben Sie einen Code ein oder klicken Sie auf „Neuer Code“.',valEanDigits:'EAN-13 akzeptiert nur 12 oder 13 Ziffern, keine Buchstaben.',
+    valEanCheck:'Die letzte Ziffer (Prüfziffer) ist falsch. Richtig ist: {d}',
+    valCode128:'Code 128 akzeptiert nur englische Buchstaben, Ziffern und Zeichen. Verwenden Sie QR für Umlaute oder andere Schriften.',
+    qrTooSmall:'Die QR-Module sind zu klein ({mm} mm). Verwenden Sie ein größeres Etikett oder einen kürzeren Code.',
+    barsTooThin:'Die Striche sind zu dünn ({mm} mm) und werden evtl. nicht gelesen. Wählen Sie ein breiteres Etikett oder einen kürzeren Code.',
+    sizeOkQr:'QR-Modulgröße {mm} mm{dots}, gut lesbar.',sizeOkBar:'Schmalster Strich {mm} mm{dots}, gut lesbar.',dotsNote:' ({n} Druckpunkte)',
+    noValidLabel:'Kein gültiges Etikett zum Drucken',codeInUse:'Dieser Code wird von einem anderen Produkt verwendet',
+    productUpdated:'Produkt aktualisiert',productSaved:'Produkt gespeichert',productDeleted:'Produkt gelöscht',noProductsExport:'Keine Produkte zum Exportieren',
+    importDone:'{added} Produkte hinzugefügt',importSkipped:', {n} mit doppelten Codes übersprungen',
+    importFail:'Die Datei konnte nicht gelesen werden. Prüfen Sie, ob es eine Excel- oder CSV-Datei mit einer Spalte „name“ (oder «اسم المنتج») ist.',
+    rotToastAuto:'Wählen Sie im Druckdialog Papierformat und Ausrichtung (Hoch- oder Querformat)',rotToastOn:'Das Etikett wird gedreht gedruckt; drucken Sie zur Kontrolle ein Testetikett',rotToastOff:'Druck in Etikettengröße',
+    buyBtn:'Kaufen',helpTitle:'Lizenz kaufen und verwalten',closeBtn:'Schließen',helpGo:'Weiter zum Kauf',
+    helpIntro:'Die ersten {limit} Etiketten sind kostenlos. Danach schaltet eine Einmalzahlung von {price} US-$ unbegrenztes Drucken frei.',
+    helpA:'Kauf und Aktivierung',
+    helpA1:'Klicken Sie im Bereich Vorschau und Druck auf „Einmalkauf ({price} US-$)“ oder unten in diesem Fenster auf „Weiter zum Kauf“.',
+    helpA2:'Sie gelangen zur sicheren Zahlungsseite von Stripe Checkout. Geben Sie dort Ihre E-Mail-Adresse und Zahlungsdaten ein; die App sieht Ihre Kartendaten nie.',
+    helpA3:'Nach Abschluss der Zahlung leitet Stripe Sie zurück zur App. Der App-Server prüft dann bei Stripe, ob die Zahlung erfolgreich war, und erst dann wird die Lizenz auf diesem Gerät aktiviert.',
+    helpA4:'Das Öffnen der Zahlungsseite oder die Rückkehr davon aktiviert allein nichts. Zeigt die App nach dem Bezahlen weiterhin den Gratis-Tarif, warten Sie eine Minute und laden Sie die Seite neu.',
+    helpA5:'Sobald die Zahlung bestätigt ist, wird eine Bestätigungs-E-Mail mit Ihrer Bestellreferenz (PL-…) an die beim Bezahlen angegebene Adresse gesendet.',
+    helpA6:'Die Lizenz ist an diesen Browser auf diesem Gerät gebunden. Nutzen Sie weiterhin denselben Browser und löschen Sie keine Cookies oder Website-Daten dieser Seite; sonst wird das Gerät nicht mehr erkannt und Sie benötigen die unten beschriebene Übertragung.',
+    helpB:'Kauf-E-Mail aufbewahren',
+    helpB0:'Behalten Sie den Zugang zu derselben E-Mail-Adresse, die Sie beim Bezahlen angegeben haben, und bewahren Sie die Bestätigungs-E-Mail auf.',
+    helpB1:'Für die Übertragung der Lizenz auf ein anderes Gerät ist ein Bestätigungscode an diese Adresse nötig. Sie müssen dieses Postfach öffnen können; die Adresse zu kennen reicht nicht.',
+    helpB2:'Die Kauf-E-Mail kann in der App nicht geändert werden.',
+    helpB3:'Bewahren Sie Ihre Bestellreferenz auf; der Support braucht sie, um Ihren Kauf zu finden.',
+    helpC:'Übertragung auf ein anderes Gerät',
+    helpC0:'Die Lizenz funktioniert jeweils nur auf einem Gerät. Sie kann nicht gleichzeitig auf mehreren Geräten genutzt werden.',
+    helpC1:'Öffnen Sie die App auf dem neuen Gerät in dem Browser, den Sie nutzen werden. Öffnen Sie unter Vorschau und Druck „Lizenz auf einem anderen Gerät gekauft? Hierher übertragen“. (Erscheint nur, wenn das Gerät noch nicht lizenziert ist.)',
+    helpC2:'Geben Sie Ihre Kauf-E-Mail ein und klicken Sie auf „Bestätigungscode senden“.',
+    helpC3:'Geben Sie den 8-stelligen Code aus der E-Mail innerhalb von {minutes} Minuten auf demselben neuen Gerät ein. Jeder Code gilt nur einmal und verfällt nach {attempts} Fehlversuchen.',
+    helpC4:'Klicken Sie auf „Übertragung bestätigen“ und bestätigen Sie den Hinweis.',
+    helpC5:'Die Lizenz wechselt sofort auf das neue Gerät und funktioniert auf dem bisherigen nicht mehr.',
+    helpC6:'Pro Lizenz ist nur eine Übertragung erlaubt. Danach kann die Lizenz nicht erneut über die App übertragen werden.',
+    helpD:'Fehlerbehebung',
+    helpD1t:'Die Kaufbestätigung ist nicht angekommen',helpD1:'Prüfen Sie den Spam- oder Junk-Ordner. Der Server versucht den Versand einige Stunden lang automatisch erneut. Ihre Lizenz funktioniert auf diesem Gerät auch bei verspäteter E-Mail, und die Bestellreferenz erscheint in den Lizenzdetails auf dem lizenzierten Gerät.',
+    helpD2t:'Der Übertragungscode ist nicht angekommen',helpD2:'Prüfen Sie den Spam-Ordner und ob Sie genau die beim Bezahlen verwendete E-Mail eingegeben haben. Aus Datenschutzgründen zeigt die App dieselbe Meldung, ob die E-Mail eine Lizenz hat oder nicht. Für dieselbe E-Mail können Sie bis zu 3 Codes pro Stunde anfordern.',
+    helpD3t:'Der Code ist abgelaufen oder wurde abgelehnt',helpD3:'Fordern Sie einen neuen Code an und nutzen Sie die neueste E-Mail; eine neue Anfrage macht frühere Codes auf diesem Gerät ungültig.',
+    helpD4t:'Vielleicht habe ich eine andere E-Mail verwendet',helpD4:'Auf dem Gerät mit der Lizenz zeigen die Lizenzdetails einen Teil der Kauf-E-Mail (z. B. pe***@e***.com). Verwenden Sie die passende vollständige Adresse.',
+    helpD5t:'„Übertragung nicht verfügbar“',helpD5:'Das passiert, wenn die einzige Übertragung bereits genutzt wurde, die Zahlung erstattet wurde oder angefochten ist, oder der Server keine E-Mails senden kann. Gehört die E-Mail zu einem Kauf, erhalten Sie eine E-Mail mit dem Grund.',
+    supportWithEmail:'Brauchen Sie Hilfe? Schreiben Sie an {email} und nennen Sie Ihre Bestellreferenz.',supportNoEmail:'Brauchen Sie Hilfe? Antworten Sie auf die Kaufbestätigung und nennen Sie Ihre Bestellreferenz.'}
 };
+function contentLang(){var l=state.settings.lang;return Object.prototype.hasOwnProperty.call(I18N,l)?l:DEFAULT_LANG}
 function t(key,data){
-  var lang=state.settings.lang==='ar'?'ar':'en',msg=(I18N[lang]&&I18N[lang][key])||I18N.en[key]||key;
+  var lang=contentLang(),msg=(I18N[lang]&&I18N[lang][key])||I18N.en[key]||key;
   return msg.replace(/\{(\w+)\}/g,function(_,k){return data&&data[k]!=null?String(data[k]):''});
 }
 function applyTheme(){
   var th=state.settings.theme||'system',root=document.documentElement;
   if(th==='system')root.removeAttribute('data-theme');else root.setAttribute('data-theme',th);
 }
+// Languages without a dictionary fall back to English, so lang/dir follow the text actually shown.
 function applyLanguage(){
-  var lang=state.settings.lang||'ar',isAr=lang==='ar';
+  var lang=contentLang(),params={price:UNLOCK_PRICE_USD,limit:FREE_LABEL_LIMIT,minutes:TRANSFER_CODE_MINUTES,attempts:TRANSFER_CODE_ATTEMPTS};
   document.documentElement.lang=lang;
-  document.documentElement.dir=isAr?'rtl':'ltr';
-  $('language-label').textContent=t('langLabel');
-  $('theme-label').textContent=t('themeLabel');
+  document.documentElement.dir=RTL_LANGS.indexOf(lang)>=0?'rtl':'ltr';
+  document.title=t('appTitle');
+  Array.prototype.forEach.call(document.querySelectorAll('[data-i18n]'),function(el){el.textContent=t(el.dataset.i18n,params)});
+  Array.prototype.forEach.call(document.querySelectorAll('[data-i18n-html]'),function(el){el.innerHTML=t(el.dataset.i18nHtml)});
+  Array.prototype.forEach.call(document.querySelectorAll('[data-i18n-attr]'),function(el){
+    el.dataset.i18nAttr.split(';').forEach(function(pair){var p=pair.split(':');el.setAttribute(p[0],t(p[1]))});
+  });
+  fillPresets();syncPreset();syncFormLabels();
 }
 function labelsRemaining(){return Math.max(0,billing.freeLimit-billing.printedCount)}
 function appLocked(){return !billing.available||(!billing.unlocked&&labelsRemaining()===0)}
@@ -2739,6 +3898,25 @@ function updateBillingUI(){
   chip.textContent=!billing.available?'—':(billing.unlocked?'∞':remain+'/'+billing.freeLimit);
   status.textContent=!billing.available?t('serviceUnavailable'):(billing.unlocked?t('unlimited'):(appLocked()?t('lockedPlan',{price:UNLOCK_PRICE_USD}):t('freeRemaining',{n:remain,limit:billing.freeLimit})));
   $('btn-unlock').textContent=t('unlockBtn',{price:UNLOCK_PRICE_USD});
+  var lic=billing.license,info=$('license-info');
+  if(billing.available&&lic&&lic.licenseStatus){
+    info.textContent=lic.licensed?t('licenseActive',{email:lic.emailMasked||'—',ref:lic.orderRef||'—',left:lic.transfersRemaining,limit:lic.transferLimit}):t('licenseInactive',{ref:lic.orderRef||'—'});
+    info.hidden=false;
+  }else if(billing.available&&lic&&lic.movedToAnotherDevice){info.textContent=t('licenseMoved');info.hidden=false}
+  else info.hidden=true;
+  $('transfer-box').hidden=!billing.available||billing.unlocked;
+  [['transfer-summary','transferSummary'],['transfer-help','transferHelp'],['transfer-email-label','transferEmailLabel'],
+   ['btn-transfer-request','transferRequestBtn'],['transfer-warning','transferWarning'],['transfer-code-label','transferCodeLabel'],
+   ['btn-transfer-confirm','transferConfirmBtn']].forEach(function(pair){$(pair[0]).textContent=t(pair[1])});
+  $('buy-go').hidden=!billing.available||billing.unlocked;
+  var support=billing.license&&billing.license.supportEmail;
+  $('help-support').textContent=support?t('supportWithEmail',{email:support}):t('supportNoEmail');
+}
+function apiError(data){var key='err_'+(data&&data.error);return t(key)!==key?t(key):t('transferFail')}
+async function postJson(url,body){
+  var res=await fetch(url,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  var data=null;try{data=await res.json()}catch(e){}
+  return{ok:res.ok,status:res.status,data:data};
 }
 function setLockedState(){
   var locked=appLocked();
@@ -2768,8 +3946,9 @@ async function syncBilling(){
     var res=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
     if(!res.ok)throw new Error('session unavailable');
     var data=await res.json();
-    billing={available:true,printedCount:data.printedCount,freeLimit:data.freeLimit,unlocked:data.unlocked===true};
-  }catch(e){billing={available:false,printedCount:0,freeLimit:FREE_LABEL_LIMIT,unlocked:false}}
+    billing={available:true,printedCount:data.printedCount,freeLimit:data.freeLimit,unlocked:data.unlocked===true,license:null};
+    try{var lic=await fetch('/api/license',{credentials:'same-origin',cache:'no-store'});if(lic.ok)billing.license=await lic.json()}catch(e){}
+  }catch(e){billing={available:false,printedCount:0,freeLimit:FREE_LABEL_LIMIT,unlocked:false,license:null}}
   updateBillingUI();setLockedState();
 }
 async function reserveLabels(count){
@@ -2778,11 +3957,11 @@ async function reserveLabels(count){
       headers:{'Content-Type':'application/json'},body:JSON.stringify({count:count})});
     var data=await res.json();
     if(res.status===402){
-      billing={available:true,printedCount:data.printedCount,freeLimit:data.freeLimit,unlocked:false};
+      billing={available:true,printedCount:data.printedCount,freeLimit:data.freeLimit,unlocked:false,license:billing.license};
       updateBillingUI();setLockedState();toast(t('unlockNeeded'));return false;
     }
     if(!res.ok)throw new Error('reservation rejected');
-    billing={available:true,printedCount:data.printedCount,freeLimit:billing.freeLimit,unlocked:data.unlocked===true};
+    billing={available:true,printedCount:data.printedCount,freeLimit:billing.freeLimit,unlocked:data.unlocked===true,license:billing.license};
     updateBillingUI();setLockedState();return true;
   }catch(e){toast(t('serviceUnavailable'));return false}
 }
@@ -2816,12 +3995,12 @@ function nextCode(peek,name){
 }
 function codeTaken(code,exceptId){return state.products.some(function(p){return p.code===code&&p.id!==exceptId})}
 function validate(code,type){
-  if(!code)return 'اكتب رمزاً أو اضغط «رقم جديد».';
+  if(!code)return t('valEmpty');
   if(type==='EAN13'){
-    if(!/^\d{12,13}$/.test(code))return 'EAN-13 يقبل 12 أو 13 رقماً فقط، بدون حروف.';
-    if(code.length===13&&eanCheck(code.slice(0,12))!==code[12])return 'الرقم الأخير (رقم التحقق) غير صحيح. الصحيح: '+eanCheck(code.slice(0,12));
+    if(!/^\d{12,13}$/.test(code))return t('valEanDigits');
+    if(code.length===13&&eanCheck(code.slice(0,12))!==code[12])return t('valEanCheck',{d:eanCheck(code.slice(0,12))});
   }
-  if(type==='CODE128'&&!/^[\x20-\x7E]+$/.test(code))return 'Code 128 يقبل الحروف الإنجليزية والأرقام والرموز فقط. استخدم QR إن أردت حروفاً عربية.';
+  if(type==='CODE128'&&!/^[\x20-\x7E]+$/.test(code))return t('valCode128');
   return '';
 }
 function normalizeCode(code,type){
@@ -2900,8 +4079,13 @@ function renderLabel(p,S,opts){
 var S=state.settings;
 function fillPresets(){
   var sel=$('s-preset'),h='';
-  PRESETS.forEach(function(p){h+='<option value="'+p[0]+'x'+p[1]+'">'+p[0]+' × '+p[1]+' ملم</option>'});
-  h+='<option value="custom">مقاس مخصص</option>';sel.innerHTML=h;
+  PRESETS.forEach(function(p){h+='<option value="'+p[0]+'x'+p[1]+'">'+esc(t('presetMm',{w:p[0],h:p[1]}))+'</option>'});
+  h+='<option value="custom">'+esc(t('presetCustom'))+'</option>';sel.innerHTML=h;
+}
+function syncFormLabels(){
+  var p=editingId&&findP(editingId);
+  $('form-title').textContent=p?t('editingTitle',{name:p.name||p.code}):t('newProduct');
+  $('btn-save').textContent=t(p?'saveEditBtn':'saveBtn');
 }
 function syncPreset(){var v=S.w+'x'+S.h;$('s-preset').value=PRESETS.some(function(p){return p[0]+'x'+p[1]===v})?v:'custom'}
 function syncSettingsUI(){
@@ -2910,7 +4094,7 @@ function syncSettingsUI(){
   $('s-exp').checked=S.showExp;$('s-batch').checked=S.showBatch;
   $('s-font').value=S.font;$('font-val').textContent=S.font+'%';
   $('f-currency').value=S.currency;$('s-next').value=S.type==='EAN13'?S.eanNext:S.next;$('s-dpi').value=String(S.dpi);$('s-rot').value=String(S.rot);
-  $('theme-select').value=S.theme||'system';$('language-select').value=S.lang||'ar';
+  $('theme-select').value=S.theme||'system';$('language-select').value=S.lang;
   Array.prototype.forEach.call(document.querySelectorAll('#type-seg button'),function(b){b.setAttribute('aria-pressed',String(b.dataset.type===S.type))});
   $('type-hint').textContent={CODE128:t('typeCode128'),EAN13:t('typeEan'),QR:t('typeQr')}[S.type];
   applyTheme();applyLanguage();updateBillingUI();setLockedState();
@@ -2942,9 +4126,8 @@ function renderPreview(){
     var mm=r.info.moduleMm.toFixed(2);
     var min=S.type==='QR'?.3:.19;
     if(r.info.moduleMm<min){st.classList.add('warn');
-      st.textContent=(S.type==='QR'?'مربعات QR صغيرة جداً ('+mm+' ملم). كبّر الملصق أو قصّر الرمز.':
-        'خطوط الباركود رفيعة جداً ('+mm+' ملم) وقد لا يقرأها الجهاز. اختر ملصقاً أعرض أو رمزاً أقصر.')}
-    else st.textContent=(S.type==='QR'?'حجم مربع QR ':'عرض أرفع خط ')+mm+' ملم'+(r.info.dots?' ('+r.info.dots+' نقطة طباعة)':'')+'، مناسب للقراءة.';
+      st.textContent=t(S.type==='QR'?'qrTooSmall':'barsTooThin',{mm:mm})}
+    else st.textContent=t(S.type==='QR'?'sizeOkQr':'sizeOkBar',{mm:mm,dots:r.info.dots?t('dotsNote',{n:r.info.dots}):''});
   }
 }
 
@@ -2964,14 +4147,14 @@ async function doPrint(items,opts){
   var requested=items.reduce(function(sum,it){
     return sum+(validate(normalizeCode(it.p.code,S.type),S.type)?0:Math.max(0,parseInt(it.copies,10)||0));
   },0);
-  if(!requested){toast('لا يوجد ملصق صالح للطباعة');return}
+  if(!requested){toast(t('noValidLabel'));return}
   if(!await reserveLabels(requested))return;
   var root=$('print-root');root.innerHTML='';
   var count=0;
   items.forEach(function(it){
     for(var i=0;i<it.copies;i++){var r=renderLabel(it.p,S,opts);if(!r.info.error||opts&&opts.test){root.appendChild(wrapPage(r.el));count++}}
   });
-  if(!count){toast('لا يوجد ملصق صالح للطباعة');return}
+  if(!count){toast(t('noValidLabel'));return}
   var turned=S.rot===90||S.rot===270;
   // "printer paper" mode: no size hint, so Chrome uses the paper chosen in the dialog and shows the Layout option
   $('page-style').textContent=S.rot===-1?'@page{size:auto;margin:0}':'@page{size:'+(turned?S.h+'mm '+S.w:S.w+'mm '+S.h)+'mm;margin:0}';
@@ -2986,17 +4169,17 @@ function renderRegister(){
   var list=state.products.filter(function(p){return !q||(p.name||'').toLowerCase().indexOf(q)>=0||p.code.toLowerCase().indexOf(q)>=0});
   $('reg-count').textContent=state.products.length;
   var body=$('reg-body');
-  if(!state.products.length){body.innerHTML='<tr><td colspan="8" class="empty">لا توجد منتجات محفوظة بعد. املأ النموذج واضغط «حفظ المنتج»، أو استورد قائمة من Excel.</td></tr>';}
-  else if(!list.length){body.innerHTML='<tr><td colspan="8" class="empty">لا نتائج لهذا البحث.</td></tr>';}
+  if(!state.products.length){body.innerHTML='<tr><td colspan="8" class="empty">'+esc(t('regEmpty'))+'</td></tr>';}
+  else if(!list.length){body.innerHTML='<tr><td colspan="8" class="empty">'+esc(t('regNoResults'))+'</td></tr>';}
   else body.innerHTML=list.map(function(p){
-    return '<tr data-id="'+p.id+'"'+(p.id===editingId?' class="editing"':'')+'><td><input type="checkbox" class="sel" aria-label="تحديد"'+(selected[p.id]?' checked':'')+'></td>'+
+    return '<tr data-id="'+p.id+'"'+(p.id===editingId?' class="editing"':'')+'><td><input type="checkbox" class="sel" aria-label="'+esc(t('selectRow'))+'"'+(selected[p.id]?' checked':'')+'></td>'+
       '<td class="mono">'+esc(p.code)+'</td><td class="name" dir="auto">'+esc(p.name)+'</td><td>'+esc(fmtPrice(p.price,S.currency))+'</td>'+
       '<td class="mono">'+esc(fmtExp(p.exp))+'</td><td class="mono">'+esc(p.batch)+'</td>'+
-      '<td><input type="number" class="copies mono" min="1" max="999" value="'+(copiesById[p.id]||1)+'" aria-label="عدد النسخ"></td>'+
-      '<td><div class="row" style="flex-wrap:nowrap"><button type="button" class="sm" data-act="edit">تعديل</button><button type="button" class="sm" data-act="print">طباعة</button><button type="button" class="sm danger" data-act="del">حذف</button></div></td></tr>';
+      '<td><input type="number" class="copies mono" min="1" max="999" value="'+(copiesById[p.id]||1)+'" aria-label="'+esc(t('copies'))+'"></td>'+
+      '<td><div class="row" style="flex-wrap:nowrap"><button type="button" class="sm" data-act="edit">'+esc(t('editBtn'))+'</button><button type="button" class="sm" data-act="print">'+esc(t('printBtn'))+'</button><button type="button" class="sm danger" data-act="del">'+esc(t('deleteBtn'))+'</button></div></td></tr>';
   }).join('');
   var n=Object.keys(selected).filter(function(k){return selected[k]}).length;
-  $('btn-print-sel').disabled=!n||appLocked();$('btn-print-sel').textContent=n?'طباعة المحدد ('+n+')':'طباعة المحدد';
+  $('btn-print-sel').disabled=!n||appLocked();$('btn-print-sel').textContent=n?t('printSelectedN',{n:n}):t('printSelected');
   $('sel-all').checked=list.length>0&&list.every(function(p){return selected[p.id]});
 }
 function findP(id){return state.products.filter(function(p){return p.id===id})[0]}
@@ -3007,21 +4190,21 @@ function saveProduct(){
   var code=normalizeCode(draft.code,S.type);
   var err=validate(code,S.type);
   if(err){toast(err);return}
-  if(codeTaken(code,editingId)){toast('الرمز مستخدم لمنتج آخر');return}
+  if(codeTaken(code,editingId)){toast(t('codeInUse'));return}
   if(code===nextCode(true,draft.name))nextCode(false,draft.name);   // advance the counter before the code is stored
-  if(editingId){var p=findP(editingId);Object.assign(p,{name:draft.name,price:draft.price,code:code,exp:draft.exp,batch:draft.batch});toast('تم تحديث المنتج')}
-  else{state.products.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:draft.name,price:draft.price,code:code,exp:draft.exp,batch:draft.batch});toast('تم حفظ المنتج')}
+  if(editingId){var p=findP(editingId);Object.assign(p,{name:draft.name,price:draft.price,code:code,exp:draft.exp,batch:draft.batch});toast(t('productUpdated'))}
+  else{state.products.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:draft.name,price:draft.price,code:code,exp:draft.exp,batch:draft.batch});toast(t('productSaved'))}
   persist();clearForm();
 }
 function clearForm(){
   editingId=null;draft={name:'',price:'',code:nextCode(true,''),exp:'',batch:'',autoCode:true};
-  writeDraft();$('form-title').textContent='منتج جديد';$('btn-save').textContent='حفظ المنتج';
+  writeDraft();
   syncSettingsUI();renderPreview();renderRegister();
 }
 function editProduct(id){
   var p=findP(id);if(!p)return;editingId=id;
   draft={name:p.name||'',price:p.price||'',code:p.code,exp:p.exp||'',batch:p.batch||'',autoCode:false};
-  writeDraft();$('form-title').textContent='تعديل: '+(p.name||p.code);$('btn-save').textContent='حفظ التعديل';
+  writeDraft();syncFormLabels();
   renderPreview();renderRegister();window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -3030,7 +4213,7 @@ var COLS={code:['code','barcode','الرمز','الباركود','رمز الب�
   price:['price','السعر'],exp:['exp','expiry','تاريخ الانتهاء','الانتهاء'],batch:['batch','lot','الدفعة','رقم الدفعة','الوجبة','رقم الوجبة']};
 function exportXlsx(){
   if(blockWhenLocked())return;
-  if(!state.products.length){toast('لا توجد منتجات للتصدير');return}
+  if(!state.products.length){toast(t('noProductsExport'));return}
   var rows=state.products.map(function(p){return{'رمز الباركود':p.code,'اسم المنتج':p.name,'السعر':p.price,'تاريخ الانتهاء':fmtExp(p.exp),'رقم الدفعة':p.batch}});
   var ws=XLSX.utils.json_to_sheet(rows);ws['!cols']=[{wch:16},{wch:32},{wch:10},{wch:12},{wch:12}];
   var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'المنتجات');
@@ -3066,8 +4249,8 @@ function importFile(file){
         added++;
       });
       persist();renderRegister();
-      toast('تمت إضافة '+added+' منتج'+(skipped?'، وتجاهل '+skipped+' برموز مكررة':''));
-    }catch(err){toast('تعذرت قراءة الملف. تأكد أنه Excel أو CSV وفيه عمود «اسم المنتج».')}
+      toast(t('importDone',{added:added})+(skipped?t('importSkipped',{n:skipped}):''));
+    }catch(err){toast(t('importFail'))}
   };
   rd.readAsArrayBuffer(file);
 }
@@ -3082,7 +4265,7 @@ $('f-name').addEventListener('input',function(){
 });
 $('f-code').addEventListener('input',function(){draft.autoCode=false;renderPreview()});
 $('theme-select').addEventListener('change',function(){S.theme=this.value;persist();syncSettingsUI();renderPreview()});
-$('language-select').addEventListener('change',function(){S.lang=this.value;persist();syncSettingsUI();renderPreview()});
+$('language-select').addEventListener('change',function(){S.lang=SUPPORTED_LANGS.indexOf(this.value)>=0?this.value:DEFAULT_LANG;persist();syncSettingsUI();renderPreview();renderRegister()});
 $('f-currency').addEventListener('input',function(){S.currency=this.value.trim();persist();renderPreview();renderRegister()});
 $('btn-newcode').addEventListener('click',function(){draft.autoCode=true;$('f-code').value=nextCode(true,$('f-name').value.trim());renderPreview()});
 $('btn-save').addEventListener('click',saveProduct);
@@ -3108,7 +4291,7 @@ $('s-preset').addEventListener('change',function(){
   S[id==='s-w'?'w':'h']=v;syncPreset();persist();renderPreview();
 })});
 $('s-dpi').addEventListener('change',function(){S.dpi=+this.value;persist();renderPreview()});
-$('s-rot').addEventListener('change',function(){S.rot=+this.value;persist();toast(S.rot===-1?'اختر في نافذة الطباعة حجم الورق والتخطيط (عمودي أو أفقي)':S.rot?'سيُطبع الملصق مدوّراً، اطبع ملصق اختبار للتأكد':'الطباعة بمقاس الملصق')});
+$('s-rot').addEventListener('change',function(){S.rot=+this.value;persist();toast(t(S.rot===-1?'rotToastAuto':S.rot?'rotToastOn':'rotToastOff'))});
 $('s-next').addEventListener('input',function(){
   var v=parseInt(this.value,10);if(!(v>=1))return;
   var wasAuto=draft.autoCode;
@@ -3121,7 +4304,7 @@ $('btn-print').addEventListener('click',function(){
   doPrint([{p:draft,copies:c}]);
 });
 $('btn-test').addEventListener('click',function(){
-  doPrint([{p:{name:'ملصق اختبار '+S.w+'×'+S.h,price:'1000',code:S.type==='EAN13'?'2000000000008':'TEST-'+S.w+'x'+S.h,exp:'2030-12',batch:'T1'},copies:1}],{test:true});
+  doPrint([{p:{name:t('testLabelName',{size:S.w+'×'+S.h}),price:'1000',code:S.type==='EAN13'?'2000000000008':'TEST-'+S.w+'x'+S.h,exp:'2030-12',batch:'T1'},copies:1}],{test:true});
 });
 $('reg-search').addEventListener('input',renderRegister);
 $('reg-body').addEventListener('change',function(e){
@@ -3135,9 +4318,9 @@ $('reg-body').addEventListener('click',function(e){
   if(act==='edit')editProduct(id);
   if(act==='print')doPrint([{p:findP(id),copies:copiesById[id]||1}]);
   if(act==='del'){
-    if(!b.classList.contains('armed')){b.classList.add('armed');b.textContent='تأكيد الحذف';setTimeout(function(){b.classList.remove('armed');b.textContent='حذف'},3000);return}
+    if(!b.classList.contains('armed')){b.classList.add('armed');b.textContent=t('confirmDelete');setTimeout(function(){b.classList.remove('armed');b.textContent=t('deleteBtn')},3000);return}
     state.products=state.products.filter(function(p){return p.id!==id});delete selected[id];
-    if(editingId===id)clearForm();persist();renderRegister();toast('تم حذف المنتج');
+    if(editingId===id)clearForm();persist();renderRegister();toast(t('productDeleted'));
   }
 });
 $('sel-all').addEventListener('change',function(){
@@ -3163,13 +4346,49 @@ $('btn-unlock').addEventListener('click',async function(){
     window.location.assign(data.url);
   }catch(e){toast(t('unlockFail'))}
 });
+$('btn-transfer-request').addEventListener('click',async function(){
+  var status=$('transfer-status'),btn=this;
+  if(!billing.available){status.textContent=t('serviceUnavailable');return}
+  btn.disabled=true;
+  try{
+    var r=await postJson('/api/license/transfer/request',{email:$('transfer-email').value});
+    if(r.status===202){status.textContent=t('transferSent',{minutes:r.data.expiresInMinutes});$('transfer-code-step').hidden=false;$('transfer-code').focus()}
+    else status.textContent=apiError(r.data);
+  }catch(e){status.textContent=t('transferFail')}
+  finally{btn.disabled=false}
+});
+$('btn-transfer-confirm').addEventListener('click',async function(){
+  var status=$('transfer-status'),btn=this,code=$('transfer-code').value.replace(/[\s-]/g,'');
+  if(!/^\d{8}$/.test(code)){status.textContent=t('err_invalid_code');return}
+  if(!window.confirm(t('transferConfirmPrompt')))return;
+  btn.disabled=true;
+  try{
+    var r=await postJson('/api/license/transfer/confirm',{code:code});
+    if(r.ok){status.textContent=t('transferDone');$('transfer-code').value='';$('transfer-code-step').hidden=true;toast(t('transferDone'));await syncBilling()}
+    else status.textContent=apiError(r.data);
+  }catch(e){status.textContent=t('transferFail')}
+  finally{btn.disabled=false}
+});
+var buyDialog=$('buy-dialog');
+function closeBuyHelp(){if(typeof buyDialog.close==='function')buyDialog.close();else buyDialog.removeAttribute('open')}
+$('btn-buy-help').addEventListener('click',function(){
+  updateBillingUI();
+  if(typeof buyDialog.showModal==='function')buyDialog.showModal();else buyDialog.setAttribute('open','');
+  $('buy-close').focus();
+});
+$('buy-close').addEventListener('click',closeBuyHelp);
+$('buy-close-x').addEventListener('click',closeBuyHelp);
+// The dialog has no padding, so a click whose target is the dialog itself landed on the backdrop.
+buyDialog.addEventListener('click',function(e){if(e.target===buyDialog)closeBuyHelp()});
+buyDialog.addEventListener('close',function(){$('btn-buy-help').focus()});
+$('buy-go').addEventListener('click',function(){closeBuyHelp();$('btn-unlock').click()});
 window.addEventListener('resize',function(){clearTimeout(renderPreview._t);renderPreview._t=setTimeout(renderPreview,100)});
 
 /* ---------- start ---------- */
-fillPresets();syncSettingsUI();
+syncSettingsUI();
 var seen=false;try{seen=!!localStorage.getItem(KEY+'-seen')}catch(e){}
 if(!state.products.length&&!seen){
-  draft={name:'زيت الزيتون',price:'',code:nextCode(true,'زيت الزيتون'),exp:'',batch:'',autoCode:true};
+  draft={name:t('sampleName'),price:'',code:nextCode(true,t('sampleName')),exp:'',batch:'',autoCode:true};
   try{localStorage.setItem(KEY+'-seen','1')}catch(e){}
 }else draft.code=nextCode(true,'');
 writeDraft();renderPreview();renderRegister();

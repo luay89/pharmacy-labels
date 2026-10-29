@@ -8,13 +8,15 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env server.js",
-    "check": "node --check server.js",
+    "check": "node --check server.js && node --check db.js && node --check mail.js && node --check backup.js",
+    "backup": "node --env-file-if-exists=.env backup.js",
     "test": "node --test"
   },
   "dependencies": {
     "better-sqlite3": "^12.4.1",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
+    "nodemailer": "^10.1.7",
     "stripe": "^18.5.0"
   }
 }

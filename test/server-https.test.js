@@ -36,6 +36,11 @@ test('HTTPS deployments send HSTS and Secure session cookies', async () => {
   assert.match(response.headers.get('set-cookie'), /; Secure$/);
   assert.equal((await response.json()).unlocked, false);
 
+  // Renewal reuses the same cookie value and keeps every attribute, including Secure.
+  const cookie = response.headers.get('set-cookie').split(';')[0];
+  const renewed = await fetch(`${local}/api/session`, { headers: { Cookie: cookie } });
+  assert.equal(renewed.headers.get('set-cookie'), `${cookie}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000; Secure`);
+
   const wrongOrigin = await fetch(`${local}/api/labels/reserve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Origin: local },

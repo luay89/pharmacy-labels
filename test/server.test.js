@@ -62,6 +62,7 @@ function paidCheckout(appSessionId, overrides = {}) {
   return {
     id: `cs_test_${appSessionId.replace(/[^A-Za-z0-9]/g, '')}`,
     object: 'checkout.session',
+    livemode: false,
     mode: 'payment',
     status: 'complete',
     payment_status: 'paid',
@@ -113,7 +114,8 @@ test('server enforces trial limits and processes signed Stripe entitlement event
   const freshCookie = malformedSession.headers.get('set-cookie').split(';')[0];
   const freshSession = await fetch(`${origin}/api/session`, { headers: { Cookie: freshCookie } });
   assert.equal(freshSession.status, 200);
-  assert.equal(freshSession.headers.get('set-cookie'), null);
+  // A valid session is renewed with the same cookie value instead of being replaced.
+  assert.equal(freshSession.headers.get('set-cookie').split(';')[0], freshCookie);
   assert.deepEqual(await freshSession.json(), { printedCount: 0, freeLimit: 20, unlocked: false });
 
   const reserve = (count, sessionCookie = cookie, requestOrigin = origin) => fetch(
@@ -165,6 +167,7 @@ test('server enforces trial limits and processes signed Stripe entitlement event
   const checkoutSession = {
     id: 'cs_test_paid',
     object: 'checkout.session',
+    livemode: false,
     mode: 'payment',
     payment_status: 'paid',
     amount_total: 500,

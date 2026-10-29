@@ -1,4 +1,4 @@
-const CACHE_NAME = 'product-labels-v3';
+const CACHE_NAME = 'product-labels-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -8,7 +8,7 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
@@ -16,7 +16,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(keys.filter((key) => key.startsWith('product-labels-') && key !== CACHE_NAME)
         .map((key) => caches.delete(key)))
-    )
+    ).then(() => self.clients.claim())
   );
 });
 
@@ -25,6 +25,17 @@ self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
   if (requestUrl.pathname.includes('/api/')) {
     event.respondWith(fetch(event.request));
+    return;
+  }
+  // The page itself goes network-first so a new release shows on the next load; the cache is the offline fallback.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).then((resp) => {
+      if (resp.ok) {
+        const cloned = resp.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', cloned));
+      }
+      return resp;
+    }).catch(() => caches.match('./index.html')));
     return;
   }
   event.respondWith(

@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -16,7 +17,7 @@ process.env.STRIPE_WEBHOOK_SECRET = webhookSecret;
 
 const Stripe = require('stripe');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const { app, db, stripe: serverStripe } = require('../server');
+const { app, db, mailer, stripe: serverStripe } = require('../server');
 let server;
 const origin = process.env.PUBLIC_APP_URL;
 
@@ -30,6 +31,23 @@ async function newSession() {
   const response = await fetch(`${origin}/api/session`);
   const cookie = response.headers.get('set-cookie').split(';')[0];
   return { cookie, id: decodeURIComponent(cookie.split('=')[1]).split('.')[0] };
+}
+
+function addAccountAndDevice(session) {
+  const accountId = crypto.randomBytes(16).toString('base64url');
+  const accountToken = crypto.randomBytes(32).toString('base64url');
+  const accountKey = Buffer.from(crypto.hkdfSync('sha256', process.env.SESSION_SECRET, Buffer.alloc(0), 'product-labels/license-v1', 32));
+  const tokenHash = crypto.createHmac('sha256', accountKey).update(`account-session:${accountToken}`).digest('hex');
+  const now = Date.now();
+  db.prepare('INSERT INTO accounts (id, email_hash, email_masked, created_at) VALUES (?, ?, ?, ?)')
+    .run(accountId, crypto.randomBytes(32).toString('hex'), 'te***@e***.com', now);
+  db.prepare('INSERT INTO account_sessions (token_hash, account_id, app_session_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?)')
+    .run(tokenHash, accountId, session.id, now, now + 30 * 24 * 60 * 60 * 1000);
+  db.prepare(`INSERT INTO devices (id, account_id, key_thumbprint, public_key_jwk, registered_at, last_validated_at)
+    VALUES (?, ?, ?, ?, ?, ?)`)
+    .run(crypto.randomBytes(16).toString('base64url'), accountId, crypto.randomBytes(32).toString('base64url'),
+      JSON.stringify({ kty: 'EC', crv: 'P-256', x: 'A'.repeat(43), y: 'B'.repeat(43) }), now, now);
+  return { id: session.id, accountId, cookie: `${session.cookie}; product_labels_account=${accountToken}` };
 }
 
 function post(pathname, body, cookie, requestOrigin = origin) {
@@ -223,7 +241,8 @@ test('server enforces trial limits and processes signed Stripe entitlement event
 });
 
 test('checkout uses the server price and rejects unauthorized requests', async () => {
-  const { cookie, id } = await newSession();
+  const session = await newSession();
+  const { cookie, id, accountId } = addAccountAndDevice(session);
   const originalCreate = serverStripe.checkout.sessions.create;
   let createParams;
   serverStripe.checkout.sessions.create = async (params) => {
@@ -243,6 +262,8 @@ test('checkout uses the server price and rejects unauthorized requests', async (
     assert.equal(createParams.mode, 'payment');
     assert.equal(createParams.client_reference_id, id);
     assert.equal(createParams.metadata.app_session_id, id);
+    assert.equal(createParams.metadata.account_id, accountId);
+    assert.equal(createParams.metadata.license_policy, 'single_device');
     assert.deepEqual(createParams.line_items.map((item) => [
       item.price_data.unit_amount, item.price_data.currency, item.quantity
     ]), [[500, 'usd', 1]]);
@@ -296,6 +317,38 @@ test('checkout completion only unlocks a verified paid session owned by the call
     assert.equal(await isUnlocked(owner.cookie), true);
   } finally {
     serverStripe.checkout.sessions.retrieve = originalRetrieve;
+  }
+});
+
+test('new checkout completion binds the purchase to the account and one-device policy', async () => {
+  const session = await newSession();
+  const buyer = addAccountAndDevice(session);
+  const otherSession = await newSession();
+  const other = addAccountAndDevice(otherSession);
+  const originalRetrieve = serverStripe.checkout.sessions.retrieve;
+  const mailWasConfigured = mailer.configured;
+  mailer.configured = true;
+  const checkout = paidCheckout(buyer.id, {
+    metadata: { app_session_id: buyer.id, account_id: buyer.accountId, license_policy: 'single_device' },
+    payment_intent: 'pi_account_bound_purchase'
+  });
+  serverStripe.checkout.sessions.retrieve = async () => checkout;
+  try {
+    const withoutAccount = await post('/api/checkout/complete', { sessionId: checkout.id }, session.cookie);
+    assert.equal(withoutAccount.status, 403);
+    const wrongAccount = await post('/api/checkout/complete', { sessionId: checkout.id }, other.cookie);
+    assert.equal(wrongAccount.status, 403);
+    const verified = await post('/api/checkout/complete', { sessionId: checkout.id }, buyer.cookie);
+    assert.equal(verified.status, 200);
+    const purchase = db.prepare(`SELECT account_id, license_policy, transfers_used, transfer_limit
+      FROM stripe_purchases WHERE payment_intent_id = ?`).get('pi_account_bound_purchase');
+    assert.deepEqual(purchase, { account_id: buyer.accountId, license_policy: 'single_device', transfers_used: 0, transfer_limit: 1 });
+    assert.equal((await post('/api/license/transfer/request', { email: 'buyer@example.com' }, other.cookie)).status, 202,
+      'transfer endpoints keep a generic response for non-legacy purchases');
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM email_outbox WHERE kind = \'transfer_code\'').get().n, 0);
+  } finally {
+    serverStripe.checkout.sessions.retrieve = originalRetrieve;
+    mailer.configured = mailWasConfigured;
   }
 });
 
@@ -395,6 +448,8 @@ test('responses carry security headers and no HSTS over plain HTTP', async () =>
   assert.equal(response.headers.get('cross-origin-opener-policy'), 'same-origin');
   assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
   assert.match(response.headers.get('content-security-policy'), /object-src 'none'/);
+  assert.match(response.headers.get('content-security-policy'), /script-src 'self' 'sha256-[A-Za-z0-9+/]+=*'/);
+  assert.doesNotMatch(response.headers.get('content-security-policy'), /unsafe-inline|unsafe-eval/);
   assert.equal(response.headers.get('strict-transport-security'), null);
   assert.equal(response.headers.get('x-powered-by'), null);
   assert.equal(response.headers.get('access-control-allow-origin'), null);

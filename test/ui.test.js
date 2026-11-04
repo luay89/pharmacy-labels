@@ -117,3 +117,21 @@ test('help text matches the server transfer rules', () => {
   }
   assert.doesNotMatch(JSON.stringify(I18N), /sk_(test|live)_|whsec_|SMTP_PASS/);
 });
+
+test('the account panel is hidden by default and the device script is never a static tag', () => {
+  assert.match(html, /<div class="panel" id="account-panel"[^>]* hidden>/);
+  assert.doesNotMatch(html, /<script[^>]*device-key\.js/);
+  assert.match(appScript, /function accountSupported\(\)\{return location\.protocol==='http:'\|\|location\.protocol==='https:'\}/);
+  // Every account error the server can return has its own message in every language.
+  for (const error of ['invalid_email', 'email_not_allowed', 'email_unavailable', 'rate_limited', 'invalid_code', 'verification_failed',
+    'account_not_found', 'account_unavailable', 'not_authenticated', 'device_limit_reached', 'key_unavailable', 'device_not_registered', 'proof_failed']) {
+    for (const lang of LANGS) assert.ok(I18N[lang][`acct_${error}`], `${lang}.acct_${error}`);
+  }
+});
+
+test('the account UI escapes product identifiers and exposes the second-factor controls', () => {
+  assert.match(appScript, /data-id="'\+esc\(p\.id\)\+'/);
+  assert.match(html, /id="btn-account-totp"/);
+  assert.match(appScript, /api\/account\/mfa\/verify/);
+  assert.doesNotMatch(html, /\son[a-z]+\s*=/i);
+});

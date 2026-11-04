@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [server-checkout]
+  pull_request:
+    branches: [server-checkout]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+      - name: Confirm Chromium is available for browser tests
+        run: command -v google-chrome || command -v chromium || command -v chromium-browser
+      - run: npm ci
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
+      - run: npm run check
+      - run: npm test
+      - name: Build container image on the hosted runner
+        run: docker build -t product-labels:ci .
+      - name: Check patch whitespace
+        if: github.event_name == 'pull_request'
+        run: git diff --check "origin/$GITHUB_BASE_REF...HEAD"
+      - name: Check pushed commits for whitespace errors
+        if: github.event_name == 'push'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            git show --format= --check HEAD
+          else
+            git diff --check "$BEFORE_SHA" "$GITHUB_SHA"
+          fi
+      - run: cmp index.html android/app/src/main/assets/index.html

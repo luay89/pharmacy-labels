@@ -94,6 +94,12 @@ test('email helpers normalize, mask and escape safely', () => {
   assert.match(confirmation.text, /one device at a time/);
   assert.match(confirmation.text, /help@example\.com/);
 
+  const accountConfirmation = templates.purchaseConfirmation({
+    orderRef: 'PL-ACCOUNT123', amountTotal: 500, currency: 'usd', licensePolicy: 'single_device', supportEmail: null
+  });
+  assert.match(accountConfirmation.text, /attached to the account/);
+  assert.doesNotMatch(accountConfirmation.text, /transfer the license once/);
+
   const transfer = templates.transferCode({ code: '12345678', minutes: 10, orderRef: '<b>PL</b>', supportEmail: null });
   assert.match(transfer.text, /12345678/);
   assert.match(transfer.text, /expires in 10 minutes/);

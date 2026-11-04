@@ -7,7 +7,8 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const Stripe = require('stripe');
 const { openDatabase } = require('./db');
-const { createMailer, templates, normalizeEmail, maskEmail } = require('./mail');
+const { createMailer, templates, normalizeEmail, maskEmail, isDisposableEmail } = require('./mail');
+const { jwkThumbprint, readSigningConfig, TRIAL_MS } = require('./license-cert');
 
 const PORT = Number(process.env.PORT || 3000);
 const APP_URL = new URL(process.env.PUBLIC_APP_URL || `http://localhost:${PORT}`);
@@ -19,16 +20,37 @@ const PRICE_CENTS = 500;
 const SESSION_COOKIE = 'product_labels_session';
 const SESSION_MAX_AGE = 365 * 24 * 60 * 60;
 const HOUR = 60 * 60 * 1000;
+const ACCOUNT_COOKIE = 'product_labels_account';
+// Absolute lifetime: a sign-in is never extended, the user confirms the email again after it.
+const ACCOUNT_SESSION_MS = 30 * 24 * HOUR;
+const ACCOUNT_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+const MFA_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const MFA_MAX_ATTEMPTS = 5;
+const DEVICE_CHALLENGE_TTL_MS = 2 * 60 * 1000;
+// Domain separation: the device key signs only this kind of message, so a signature can never be
+// replayed as something else. Must match device-key.js.
+const DEVICE_PROOF_PREFIX = 'product-labels-device-proof:v1:';
 const TRANSFER_CODE_TTL_MS = 10 * 60 * 1000;
 const TRANSFER_CODE_MAX_ATTEMPTS = 5;
+const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
+const EMAIL_CODE_MAX_ATTEMPTS = 5;
+const EMAIL_CODE_RESEND_MS = 60 * 1000;
 const OUTBOX_RETRY_DELAYS = [60_000, 5 * 60_000, 30 * 60_000, 2 * HOUR];
-// Transfer codes live for 10 minutes, so their retries are short; expiry ends them anyway.
+// Emails that carry a one-time code: sealed in the outbox, wiped once sent or failed, never sent near expiry.
+const CODE_EMAIL_KINDS = new Set(['transfer_code', 'email_verification_code']);
+// Codes live for 10 minutes, so their retries are short; expiry ends them anyway.
 const TRANSFER_EMAIL_RETRY_DELAYS = [30_000, 60_000, 2 * 60_000, 3 * 60_000];
 // SMTP-side outages (rejected login, unreachable server) say nothing about the message itself, so they
 // postpone it without using up its attempts; transfer codes still end at their own expiry.
 const MAIL_SERVICE_ERRORS = new Set(['EAUTH', 'ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EDNS', 'ETLS']);
-const MAIL_SERVICE_RETRY_MS = { transfer_code: 60_000, default: 5 * 60_000 };
+const MAIL_SERVICE_RETRY_MS = { transfer_code: 60_000, email_verification_code: 60_000, default: 5 * 60_000 };
 const SUPPORT_EMAIL = normalizeEmail(process.env.SUPPORT_EMAIL || '');
+const licenseSigning = readSigningConfig(process.env);
+const licenseSigner = licenseSigning.configured ? licenseSigning.signer : null;
+const INLINE_SCRIPT_HASHES = [...fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8')
+  .matchAll(/<script\b(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi)]
+  .map((match) => `'sha256-${crypto.createHash('sha256').update(match[1]).digest('base64')}'`);
+const SCRIPT_POLICY = `script-src 'self' ${INLINE_SCRIPT_HASHES.join(' ')}`;
 
 if (SESSION_SECRET.length < 32) {
   throw new Error('SESSION_SECRET must contain at least 32 characters.');
@@ -65,6 +87,10 @@ const licenseKey = Buffer.from(
 const outboxKey = Buffer.from(
   crypto.hkdfSync('sha256', SESSION_SECRET, Buffer.alloc(0), 'product-labels/outbox-v1', 32)
 );
+// Challenges are stateless: an HMAC under their own key, never the cookie key.
+const deviceChallengeKey = Buffer.from(
+  crypto.hkdfSync('sha256', SESSION_SECRET, Buffer.alloc(0), 'product-labels/device-challenge-v1', 32)
+);
 if (require.main === module) {
   if (migration.from !== migration.to) {
     console.log(`Database migrated from v${migration.from} to v${migration.to}${migration.backupPath ? ' (backup saved in DATA_DIR/backups)' : ''}.`);
@@ -72,6 +98,7 @@ if (require.main === module) {
   if (!mailer.configured) {
     console.warn('Email disabled: SMTP_HOST is not set (purchase confirmations stay queued, license transfers are unavailable).');
   }
+  if (!licenseSigner) console.warn('Offline licenses disabled: LICENSE_SIGNING_KEY_FILE and LICENSE_SIGNING_KEY are not set.');
   const testPurchases = STRIPE_LIVE_MODE && db.prepare(
     "SELECT COUNT(*) AS n FROM stripe_purchases WHERE checkout_session_id LIKE 'cs\\_test\\_%' ESCAPE '\\'"
   ).get().n;
@@ -99,11 +126,11 @@ const reserveLabels = db.prepare(`
 const savePurchase = db.prepare(`
   INSERT INTO stripe_purchases (
     payment_intent_id, app_session_id, status, checkout_session_id,
-    email_hash, email_masked, order_ref, amount_total, currency
+    email_hash, email_masked, order_ref, amount_total, currency, account_id, license_policy
   )
   VALUES (
     @intentId, @appSessionId, 'active', @checkoutSessionId,
-    @emailHash, @emailMasked, @orderRef, @amountTotal, @currency
+    @emailHash, @emailMasked, @orderRef, @amountTotal, @currency, @accountId, @licensePolicy
   )
   ON CONFLICT(payment_intent_id) DO UPDATE SET
     app_session_id = COALESCE(stripe_purchases.app_session_id, excluded.app_session_id),
@@ -113,6 +140,9 @@ const savePurchase = db.prepare(`
     order_ref = COALESCE(stripe_purchases.order_ref, excluded.order_ref),
     amount_total = COALESCE(stripe_purchases.amount_total, excluded.amount_total),
     currency = COALESCE(stripe_purchases.currency, excluded.currency),
+    account_id = COALESCE(stripe_purchases.account_id, excluded.account_id),
+    license_policy = CASE WHEN stripe_purchases.license_policy = 'legacy' AND excluded.account_id IS NOT NULL
+      THEN 'single_device' ELSE stripe_purchases.license_policy END,
     updated_at = CURRENT_TIMESTAMP
   WHERE stripe_purchases.app_session_id IS NULL
     OR stripe_purchases.app_session_id = excluded.app_session_id
@@ -128,7 +158,7 @@ const savePendingPurchaseStatus = db.prepare(`
     AND stripe_purchases.status != 'refunded'
 `);
 const PURCHASE_COLUMNS = `payment_intent_id, app_session_id, status, status_event_created, email_masked,
-  order_ref, amount_total, currency, transfers_used, transfer_limit`;
+  order_ref, amount_total, currency, transfers_used, transfer_limit, license_policy, account_id`;
 const findPurchase = db.prepare(
   `SELECT ${PURCHASE_COLUMNS} FROM stripe_purchases WHERE payment_intent_id = ?`
 );
@@ -138,7 +168,7 @@ const findBoundPurchase = db.prepare(`
 `);
 const findPurchaseByEmail = db.prepare(`
   SELECT ${PURCHASE_COLUMNS} FROM stripe_purchases
-  WHERE email_hash = ?
+  WHERE email_hash = ? AND license_policy = 'legacy'
   ORDER BY (status = 'active' AND transfers_used < transfer_limit) DESC, rowid DESC LIMIT 1
 `);
 const updatePurchaseStatus = db.prepare(`
@@ -152,6 +182,7 @@ const transferPurchase = db.prepare(`
   SET app_session_id = @to, transfers_used = transfers_used + 1,
     last_transfer_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
   WHERE payment_intent_id = @intentId AND status = 'active'
+    AND license_policy = 'legacy'
     AND transfers_used < transfer_limit AND app_session_id IS @from
 `);
 const recordTransfer = db.prepare(
@@ -181,6 +212,103 @@ const failVerification = db.prepare(`
   SET attempts = attempts + 1, consumed_at = CASE WHEN attempts + 1 >= ? THEN ? ELSE NULL END
   WHERE id = ?
 `);
+const insertAccountCode = db.prepare(`
+  INSERT INTO account_codes (email_hash, app_session_id, code_hash, expires_at, created_at)
+  VALUES (?, ?, ?, ?, ?)
+`);
+const findOpenAccountCode = db.prepare(`
+  SELECT id, code_hash, expires_at FROM account_codes
+  WHERE app_session_id = ? AND email_hash = ? AND consumed_at IS NULL ORDER BY id DESC LIMIT 1
+`);
+const selectAccountCodeState = db.prepare('SELECT expires_at, consumed_at FROM account_codes WHERE id = ?');
+const closeSessionAccountCodes = db.prepare(
+  'UPDATE account_codes SET consumed_at = ? WHERE app_session_id = ? AND consumed_at IS NULL'
+);
+const closeAccountCode = db.prepare(
+  'UPDATE account_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL'
+);
+const failAccountCode = db.prepare(`
+  UPDATE account_codes
+  SET attempts = attempts + 1, consumed_at = CASE WHEN attempts + 1 >= ? THEN ? ELSE NULL END
+  WHERE id = ? AND consumed_at IS NULL
+`);
+const insertAccount = db.prepare(`
+  INSERT INTO accounts (id, email_hash, email_masked, created_at) VALUES (?, ?, ?, ?)
+  ON CONFLICT(email_hash) DO NOTHING
+`);
+const findAccountByEmail = db.prepare('SELECT id, status, email_masked FROM accounts WHERE email_hash = ?');
+const findTotpByAccount = db.prepare('SELECT secret_sealed, enabled_at FROM account_totp WHERE account_id = ?');
+const saveTotpSecret = db.prepare(`
+  INSERT INTO account_totp (account_id, secret_sealed, enabled_at, updated_at) VALUES (?, ?, NULL, ?)
+  ON CONFLICT(account_id) DO UPDATE SET secret_sealed = excluded.secret_sealed, updated_at = excluded.updated_at
+  WHERE account_totp.enabled_at IS NULL
+`);
+const enableTotp = db.prepare('UPDATE account_totp SET enabled_at = ?, updated_at = ? WHERE account_id = ? AND enabled_at IS NULL');
+const deleteTotp = db.prepare('DELETE FROM account_totp WHERE account_id = ?');
+const insertMfaChallenge = db.prepare(`
+  INSERT INTO account_mfa_challenges (token_hash, account_id, app_session_id, intent, replaced_token_hash, created_at, expires_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?)
+`);
+const findMfaChallenge = db.prepare(`
+  SELECT token_hash, account_id, app_session_id, intent, replaced_token_hash, attempts, created_at, expires_at, consumed_at
+  FROM account_mfa_challenges WHERE token_hash = ?
+`);
+const failMfaChallenge = db.prepare(`
+  UPDATE account_mfa_challenges SET attempts = attempts + 1,
+    consumed_at = CASE WHEN attempts + 1 >= ? THEN ? ELSE consumed_at END
+  WHERE token_hash = ? AND consumed_at IS NULL
+`);
+const consumeMfaChallenge = db.prepare('UPDATE account_mfa_challenges SET consumed_at = ? WHERE token_hash = ? AND consumed_at IS NULL');
+const insertRecoveryCode = db.prepare('INSERT INTO account_recovery_codes (account_id, code_hash, created_at) VALUES (?, ?, ?)');
+const useRecoveryCode = db.prepare('UPDATE account_recovery_codes SET used_at = ? WHERE account_id = ? AND code_hash = ? AND used_at IS NULL');
+const clearRecoveryCodes = db.prepare('DELETE FROM account_recovery_codes WHERE account_id = ?');
+const findAccountTrial = db.prepare('SELECT device_thumbprint, started_at, expires_at FROM trials WHERE account_id = ?');
+const insertAccountTrial = db.prepare('INSERT INTO trials (account_id, device_thumbprint, started_at, expires_at) VALUES (?, ?, ?, ?)');
+const findActiveAccountPurchase = db.prepare(`
+  SELECT payment_intent_id FROM stripe_purchases
+  WHERE account_id = ? AND license_policy = 'single_device' AND status = 'active'
+  ORDER BY updated_at DESC, rowid DESC LIMIT 1
+`);
+const insertLicenseCertificate = db.prepare(`
+  INSERT INTO license_certificates (jti, device_id, kind, kid, issued_at, expires_at, revalidate_at, grace_until)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const insertAccountSession = db.prepare(`
+  INSERT INTO account_sessions (token_hash, account_id, app_session_id, created_at, expires_at)
+  VALUES (?, ?, ?, ?, ?)
+`);
+const findAccountSession = db.prepare(`
+  SELECT account_sessions.account_id, account_sessions.app_session_id, account_sessions.expires_at,
+    accounts.status, accounts.email_masked
+  FROM account_sessions JOIN accounts ON accounts.id = account_sessions.account_id
+  WHERE account_sessions.token_hash = ? AND account_sessions.revoked_at IS NULL
+`);
+const revokeAccountSession = db.prepare(
+  'UPDATE account_sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL'
+);
+const insertAuditEvent = db.prepare(
+  'INSERT INTO audit_events (at, event, outcome, account_id, ip_hash) VALUES (?, ?, ?, ?, ?)'
+);
+const findDeviceByThumbprint = db.prepare('SELECT id, account_id, revoked_at FROM devices WHERE key_thumbprint = ?');
+const findActiveDevice = db.prepare(`
+  SELECT id, key_thumbprint, registered_at, last_validated_at FROM devices WHERE account_id = ? AND revoked_at IS NULL
+`);
+const findDevice = db.prepare(
+  'SELECT id, account_id, key_thumbprint, public_key_jwk, revoked_at FROM devices WHERE id = ?'
+);
+const insertDevice = db.prepare(`
+  INSERT INTO devices (id, account_id, key_thumbprint, public_key_jwk, registered_at, last_validated_at)
+  VALUES (?, ?, ?, ?, ?, ?)
+`);
+// A proof counts only for a challenge issued after the previous proof, which makes every challenge single use.
+const markDeviceValidated = db.prepare(`
+  UPDATE devices SET last_validated_at = ?
+  WHERE id = ? AND account_id = ? AND revoked_at IS NULL AND (last_validated_at IS NULL OR last_validated_at < ?)
+`);
+const selectAccountStatus = db.prepare('SELECT status FROM accounts WHERE id = ?');
+const insertDeviceAudit = db.prepare(
+  'INSERT INTO audit_events (at, event, outcome, account_id, device_id, ip_hash) VALUES (?, ?, ?, ?, ?, ?)'
+);
 const selectRateLimit = db.prepare('SELECT window_start, count FROM rate_limits WHERE key = ?');
 const resetRateLimit = db.prepare(`
   INSERT INTO rate_limits (key, window_start, count) VALUES (?, ?, 1)
@@ -199,7 +327,7 @@ const selectDueEmails = db.prepare(`
 `);
 const markEmailSent = db.prepare(`
   UPDATE email_outbox SET status = 'sent', to_address = NULL, sent_at = ?, last_error = NULL,
-    payload = CASE WHEN kind = 'transfer_code' THEN '{}' ELSE payload END
+    payload = CASE WHEN kind IN ('transfer_code', 'email_verification_code') THEN '{}' ELSE payload END
   WHERE id = ? AND status = 'pending'
 `);
 const markEmailRetry = db.prepare(`
@@ -211,12 +339,13 @@ const deferEmail = db.prepare(`
 `);
 const deferPendingEmails = db.prepare(`
   UPDATE email_outbox
-  SET next_attempt_at = MAX(next_attempt_at, CASE WHEN kind = 'transfer_code' THEN @codes ELSE @others END)
+  SET next_attempt_at = MAX(next_attempt_at,
+    CASE WHEN kind IN ('transfer_code', 'email_verification_code') THEN @codes ELSE @others END)
   WHERE status = 'pending'
 `);
 const markEmailFailed = db.prepare(`
   UPDATE email_outbox SET status = 'failed', attempts = attempts + 1, to_address = NULL, last_error = ?,
-    payload = CASE WHEN kind = 'transfer_code' THEN '{}' ELSE payload END
+    payload = CASE WHEN kind IN ('transfer_code', 'email_verification_code') THEN '{}' ELSE payload END
   WHERE id = ? AND status = 'pending'
 `);
 const refreshEntitlement = db.prepare(`
@@ -241,7 +370,7 @@ app.use((req, res, next) => {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Frame-Options': 'DENY',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-    'Content-Security-Policy': "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'",
+    'Content-Security-Policy': `${SCRIPT_POLICY}; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'`,
     'Cross-Origin-Opener-Policy': 'same-origin',
     'Cache-Control': 'no-store'
   });
@@ -259,17 +388,24 @@ function safeEqual(left, right) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function requestSession(req, res, next) {
-  const raw = req.headers.cookie || '';
-  const match = raw.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
-  let cookieValue = '';
-  if (match) {
-    try {
-      cookieValue = decodeURIComponent(match[1]);
-    } catch {
-      // Malformed cookie: fall through and issue a fresh session.
-    }
+function safeErrorCode(error) {
+  return typeof error?.code === 'string' && /^[A-Z0-9_]{1,32}$/.test(error.code)
+    ? error.code
+    : 'unknown';
+}
+
+function readCookie(req, name) {
+  const match = (req.headers.cookie || '').match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
+  if (!match) return '';
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return ''; // Malformed cookie: treated as absent.
   }
+}
+
+function requestSession(req, res, next) {
+  const cookieValue = readCookie(req, SESSION_COOKIE);
   if (cookieValue) {
     const [id, signature, extra] = cookieValue.split('.');
     if (id && signature && !extra && safeEqual(signature, sessionSignature(id))) {
@@ -298,6 +434,12 @@ function setSessionCookie(res, id) {
   const secure = APP_URL.protocol === 'https:' ? '; Secure' : '';
   res.append('Set-Cookie',
     `${SESSION_COOKIE}=${encodeURIComponent(`${id}.${sessionSignature(id)}`)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}${secure}`);
+}
+
+function setAccountCookie(res, token, maxAgeSeconds) {
+  const secure = APP_URL.protocol === 'https:' ? '; Secure' : '';
+  res.append('Set-Cookie',
+    `${ACCOUNT_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`);
 }
 
 function requireSameOrigin(req, res, next) {
@@ -336,6 +478,9 @@ const reserveLimiter = rateLimit({
 
 function isPaidCheckout(session, appSessionId) {
   const paymentIntent = session && session.payment_intent;
+  const accountId = session && session.metadata && session.metadata.account_id;
+  const accountBindingValid = accountId === undefined || accountId === '' ||
+    (/^[A-Za-z0-9_-]{16,64}$/.test(accountId) && session.metadata.license_policy === 'single_device');
   return session &&
     typeof appSessionId === 'string' &&
     session.livemode === STRIPE_LIVE_MODE &&
@@ -346,6 +491,7 @@ function isPaidCheckout(session, appSessionId) {
     session.client_reference_id === appSessionId &&
     session.metadata &&
     session.metadata.app_session_id === appSessionId &&
+    accountBindingValid &&
     (typeof paymentIntent === 'string' || (paymentIntent && typeof paymentIntent.id === 'string'));
 }
 
@@ -357,6 +503,80 @@ function paymentIntentId(session) {
 
 function keyedHash(purpose, value) {
   return crypto.createHmac('sha256', licenseKey).update(`${purpose}:${value}`).digest('hex');
+}
+
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function base32Encode(bytes) {
+  let bits = 0;
+  let value = 0;
+  let output = '';
+  for (const byte of bytes) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      output += BASE32_ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits) output += BASE32_ALPHABET[(value << (5 - bits)) & 31];
+  return output;
+}
+
+function base32Decode(value) {
+  if (typeof value !== 'string' || !/^[A-Z2-7]+$/.test(value)) return null;
+  let bits = 0;
+  let current = 0;
+  const bytes = [];
+  for (const char of value) {
+    current = (current << 5) | BASE32_ALPHABET.indexOf(char);
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((current >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(bytes);
+}
+
+function totpAt(secret, timeMs) {
+  const key = base32Decode(secret);
+  if (!key) return '';
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(timeMs / 30_000)));
+  const digest = crypto.createHmac('sha1', key).update(counter).digest();
+  const offset = digest[digest.length - 1] & 15;
+  const binary = ((digest[offset] & 127) << 24) | (digest[offset + 1] << 16) |
+    (digest[offset + 2] << 8) | digest[offset + 3];
+  return String(binary % 1_000_000).padStart(6, '0');
+}
+
+function validTotp(secret, code, now = clock.now()) {
+  if (typeof code !== 'string' || !/^\d{6}$/.test(code)) return false;
+  for (const drift of [-1, 0, 1]) {
+    if (safeEqual(totpAt(secret, now + drift * 30_000), code)) return true;
+  }
+  return false;
+}
+
+function normalizedRecoveryCode(value) {
+  return typeof value === 'string' && /^[A-Za-z2-7]{4}-[A-Za-z2-7]{4}-[A-Za-z2-7]{4}-[A-Za-z2-7]{4}$/.test(value)
+    ? value.replace(/-/g, '').toUpperCase()
+    : null;
+}
+
+function newRecoveryCode() {
+  const raw = base32Encode(crypto.randomBytes(10));
+  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
+}
+
+function verifyTotpOrRecovery(accountId, sealedSecret, code, now = clock.now()) {
+  let secret;
+  try { secret = openCode(sealedSecret, `account-totp:${accountId}`); } catch { return false; }
+  if (validTotp(secret, code, now)) return true;
+  const normalized = normalizedRecoveryCode(code);
+  if (!normalized) return false;
+  return useRecoveryCode.run(now, accountId, keyedHash('recovery-code', `${accountId}:${normalized}`)).changes === 1;
 }
 
 const ORDER_REF_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -373,6 +593,7 @@ function errorCode(error) {
 function activatePurchase(session, appSessionId) {
   const intentId = paymentIntentId(session);
   if (!intentId) return false;
+  const accountId = session.metadata && typeof session.metadata.account_id === 'string' ? session.metadata.account_id : null;
   const email = normalizeEmail(session.customer_details && session.customer_details.email);
   savePurchase.run({
     intentId,
@@ -382,7 +603,9 @@ function activatePurchase(session, appSessionId) {
     emailMasked: email ? maskEmail(email) : null,
     orderRef: orderReference(intentId),
     amountTotal: session.amount_total,
-    currency: session.currency
+    currency: session.currency,
+    accountId,
+    licensePolicy: accountId ? 'single_device' : 'legacy'
   });
   refreshEntitlement.run(appSessionId);
   const purchase = findPurchase.get(intentId);
@@ -391,7 +614,7 @@ function activatePurchase(session, appSessionId) {
   } else if (purchase.status === 'active') {
     const now = clock.now();
     enqueueEmail.run('purchase_confirmation', `purchase_confirmation:${intentId}`, intentId, email,
-      JSON.stringify({ orderRef: purchase.order_ref, amountTotal: purchase.amount_total, currency: purchase.currency }),
+      JSON.stringify({ orderRef: purchase.order_ref, amountTotal: purchase.amount_total, currency: purchase.currency, licensePolicy: purchase.license_policy }),
       now, now);
   }
   return true;
@@ -435,28 +658,40 @@ function processOutbox() {
 
 function scheduleOutbox() {
   setImmediate(() => {
-    processOutbox().catch((error) => console.error('Email outbox failed:', error.message));
+    processOutbox().catch((error) => console.error(`Email outbox failed (${safeErrorCode(error)}).`));
   });
 }
 
-function sealTransferCode(code, verificationId) {
+// The context (purpose and row id) is authenticated, so a sealed code only opens for the row it was made for.
+function sealCode(code, context) {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', outboxKey, iv);
-  cipher.setAAD(Buffer.from(`transfer-code:${verificationId}`));
+  cipher.setAAD(Buffer.from(context));
   const sealed = Buffer.concat([cipher.update(code, 'utf8'), cipher.final()]);
   return Buffer.concat([iv, cipher.getAuthTag(), sealed]).toString('base64');
 }
 
-function openTransferCode(value, verificationId) {
+function openCode(value, context) {
   const raw = Buffer.from(String(value), 'base64');
   const decipher = crypto.createDecipheriv('aes-256-gcm', outboxKey, raw.subarray(0, 12));
-  decipher.setAAD(Buffer.from(`transfer-code:${verificationId}`));
+  decipher.setAAD(Buffer.from(context));
   decipher.setAuthTag(raw.subarray(12, 28));
   return Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString('utf8');
 }
 
 const TERMINAL_EMAIL_ERRORS = new Set(['invalid_outbox_item', 'code_unavailable']);
 const outboxError = (code) => Object.assign(new Error('Email not sendable.'), { code });
+
+// Never send a code that was used, replaced by a newer request, locked or (nearly) expired.
+function openQueuedCode(state, sealedCode, context) {
+  const remaining = state && state.consumed_at === null ? state.expires_at - clock.now() : 0;
+  if (remaining < 60_000) throw outboxError('code_unavailable');
+  try {
+    return { code: openCode(sealedCode, context), minutes: Math.floor((remaining + 1000) / 60_000) };
+  } catch {
+    throw outboxError('invalid_outbox_item');
+  }
+}
 
 function outboxMessage(item) {
   if (!item.to_address) throw outboxError('invalid_outbox_item');
@@ -473,22 +708,14 @@ function outboxMessage(item) {
     return templates.transferUnavailable({ ...payload, supportEmail: SUPPORT_EMAIL });
   }
   if (item.kind === 'transfer_code') {
-    // Never send a code that was used, replaced by a newer request, locked or (nearly) expired.
-    const verification = selectVerificationState.get(payload.verificationId);
-    const remaining = verification && verification.consumed_at === null ? verification.expires_at - clock.now() : 0;
-    if (remaining < 60_000) throw outboxError('code_unavailable');
-    let code;
-    try {
-      code = openTransferCode(payload.sealedCode, payload.verificationId);
-    } catch {
-      throw outboxError('invalid_outbox_item');
-    }
-    return templates.transferCode({
-      code,
-      minutes: Math.floor((remaining + 1000) / 60_000),
-      orderRef: payload.orderRef,
-      supportEmail: SUPPORT_EMAIL
-    });
+    const { code, minutes } = openQueuedCode(selectVerificationState.get(payload.verificationId),
+      payload.sealedCode, `transfer-code:${payload.verificationId}`);
+    return templates.transferCode({ code, minutes, orderRef: payload.orderRef, supportEmail: SUPPORT_EMAIL });
+  }
+  if (item.kind === 'email_verification_code') {
+    const { code, minutes } = openQueuedCode(selectAccountCodeState.get(payload.codeId),
+      payload.sealedCode, `email-verification-code:${payload.codeId}`);
+    return templates.emailVerificationCode({ code, minutes, supportEmail: SUPPORT_EMAIL });
   }
   throw outboxError('invalid_outbox_item');
 }
@@ -515,7 +742,7 @@ async function deliverDueEmails() {
           })();
           return;
         }
-        const delays = item.kind === 'transfer_code' ? TRANSFER_EMAIL_RETRY_DELAYS : OUTBOX_RETRY_DELAYS;
+        const delays = CODE_EMAIL_KINDS.has(item.kind) ? TRANSFER_EMAIL_RETRY_DELAYS : OUTBOX_RETRY_DELAYS;
         if (item.attempts >= delays.length || TERMINAL_EMAIL_ERRORS.has(code)) {
           markEmailFailed.run(code, item.id);
         } else {
@@ -650,12 +877,18 @@ app.post('/api/labels/reserve', reserveLimiter, (req, res) => {
 });
 
 app.post('/api/checkout', checkoutLimiter, async (req, res, next) => {
-  if (req.appSession.unlocked === 1) {
-    res.status(409).json({ error: 'already_unlocked' });
-    return;
-  }
   if (!stripe) {
     res.status(503).json({ error: 'stripe_not_configured' });
+    return;
+  }
+  const account = signedInAccount(req, res);
+  if (!account) return;
+  if (!findActiveDevice.get(account.id)) {
+    res.status(409).json({ error: 'device_not_registered' });
+    return;
+  }
+  if (req.appSession.unlocked === 1) {
+    res.status(409).json({ error: 'already_unlocked' });
     return;
   }
   try {
@@ -672,7 +905,7 @@ app.post('/api/checkout', checkoutLimiter, async (req, res, next) => {
       }],
       success_url: `${APP_URL.origin}/?checkout_session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_URL.origin}/?checkout=cancelled`,
-      metadata: { app_session_id: req.appSessionId }
+      metadata: { app_session_id: req.appSessionId, account_id: account.id, license_policy: 'single_device' }
     });
     res.json({ url: checkout.url });
   } catch (error) {
@@ -704,6 +937,11 @@ app.post('/api/checkout/complete', completeLimiter, async (req, res, next) => {
     if (checkout.payment_status !== 'paid' && checkout.status === 'complete' &&
         checkout.client_reference_id === req.appSessionId) {
       res.status(409).json({ error: 'payment_pending' });
+      return;
+    }
+    const checkoutAccountId = checkout.metadata && checkout.metadata.account_id;
+    if (checkoutAccountId && currentAccount(req).account?.id !== checkoutAccountId) {
+      res.status(403).json({ error: 'purchase_not_verified' });
       return;
     }
     if (!isPaidCheckout(checkout, req.appSessionId)) {
@@ -744,7 +982,7 @@ const startTransfer = db.transaction((email, emailHash, appSessionId) => {
   const verificationId = Number(insertVerification.run(purchase.payment_intent_id, appSessionId,
     verificationHash(appSessionId, purchase.payment_intent_id, code), now + TRANSFER_CODE_TTL_MS, now).lastInsertRowid);
   enqueueEmail.run('transfer_code', `transfer_code:${verificationId}`, purchase.payment_intent_id, email,
-    JSON.stringify({ verificationId, orderRef: purchase.order_ref, sealedCode: sealTransferCode(code, verificationId) }),
+    JSON.stringify({ verificationId, orderRef: purchase.order_ref, sealedCode: sealCode(code, `transfer-code:${verificationId}`) }),
     now, now);
   return { kind: 'code' };
 });
@@ -759,7 +997,7 @@ const completeTransfer = db.transaction((appSessionId, code) => {
   }
   closeVerification.run(now, verification.id);
   const purchase = findPurchase.get(verification.payment_intent_id);
-  if (!purchase || purchase.status !== 'active') return { error: 'license_unavailable' };
+  if (!purchase || purchase.status !== 'active' || purchase.license_policy !== 'legacy') return { error: 'license_unavailable' };
   const moved = transferPurchase.run({
     to: appSessionId,
     from: purchase.app_session_id,
@@ -853,10 +1091,656 @@ app.post('/api/license/transfer/confirm', (req, res) => {
   res.json({ licensed: true, transfersRemaining: result.transfersRemaining });
 });
 
+// Email verification only proves that this browser session can read the mailbox. It creates no account
+// and grants nothing: the successful, single-use consumption of a code is the only proof, so later phases
+// must act inside the same transaction rather than trust a stored or consumed account_codes row.
+function emailCodeHash(appSessionId, emailHash, code) {
+  return keyedHash('email-verification-code', `${appSessionId}:${emailHash}:${code}`);
+}
+
+// A new request replaces any open code of this session; the code row and its email are queued together.
+const startEmailVerification = db.transaction((email, emailHash, appSessionId) => {
+  const now = clock.now();
+  closeSessionAccountCodes.run(now, appSessionId);
+  const code = String(crypto.randomInt(0, 100_000_000)).padStart(8, '0');
+  const codeId = Number(insertAccountCode.run(emailHash, appSessionId,
+    emailCodeHash(appSessionId, emailHash, code), now + EMAIL_CODE_TTL_MS, now).lastInsertRowid);
+  enqueueEmail.run('email_verification_code', `email_verification_code:${codeId}`, null, email,
+    JSON.stringify({ codeId, sealedCode: sealCode(code, `email-verification-code:${codeId}`) }), now, now);
+});
+
+// Must run inside a transaction. True only for the one call that consumes a matching, live code.
+function consumeEmailCode(appSessionId, emailHash, code, now) {
+  const pending = findOpenAccountCode.get(appSessionId, emailHash);
+  if (!pending) return false;
+  if (pending.expires_at <= now) {
+    closeAccountCode.run(now, pending.id);
+    return false;
+  }
+  if (!safeEqual(emailCodeHash(appSessionId, emailHash, code), pending.code_hash)) {
+    failAccountCode.run(EMAIL_CODE_MAX_ATTEMPTS, now, pending.id);
+    return false;
+  }
+  return closeAccountCode.run(now, pending.id).changes === 1;
+}
+
+const completeEmailVerification = db.transaction((appSessionId, emailHash, code) =>
+  consumeEmailCode(appSessionId, emailHash, code, clock.now()));
+
+function readEmailCode(body) {
+  const raw = body && body.code;
+  const code = typeof raw === 'string' ? raw.replace(/[\s-]/g, '') : '';
+  return /^\d{8}$/.test(code) ? code : null;
+}
+
+function emailCodeChecksAllowed(req) {
+  // Shared by verify, signup and login, so switching routes buys no extra guesses.
+  return consumeRateLimit.immediate(`email-code-verify:ip:${keyedHash('ip', req.ip)}`, 30, HOUR) &&
+    consumeRateLimit.immediate(`email-code-verify:session:${req.appSessionId}`, 10, HOUR);
+}
+
+app.post('/api/email-verification/request', (req, res) => {
+  const email = normalizeEmail(req.body && req.body.email);
+  if (!email) {
+    res.status(400).json({ error: 'invalid_email' });
+    return;
+  }
+  if (isDisposableEmail(email)) {
+    res.status(400).json({ error: 'email_not_allowed' });
+    return;
+  }
+  if (!mailer.configured) {
+    res.status(503).json({ error: 'email_unavailable' });
+    return;
+  }
+  const emailHash = keyedHash('email', email);
+  // The resend cooldown is checked before the hourly address limit so a too-early retry does not use it up.
+  const allowed = consumeRateLimit.immediate(`email-code-request:ip:${keyedHash('ip', req.ip)}`, 10, HOUR) &&
+    consumeRateLimit.immediate(`email-code-request:session:${req.appSessionId}`, 5, HOUR) &&
+    consumeRateLimit.immediate(`email-code-request:resend:${emailHash}`, 1, EMAIL_CODE_RESEND_MS) &&
+    consumeRateLimit.immediate(`email-code-request:email:${emailHash}`, 3, HOUR);
+  if (!allowed) {
+    res.status(429).json({ error: 'rate_limited' });
+    return;
+  }
+  // Same answer for every address: nothing here looks at accounts or purchases.
+  startEmailVerification.immediate(email, emailHash, req.appSessionId);
+  scheduleOutbox();
+  res.status(202).json({ status: 'queued', expiresInMinutes: EMAIL_CODE_TTL_MS / 60_000 });
+});
+
+app.post('/api/email-verification/verify', (req, res) => {
+  const email = normalizeEmail(req.body && req.body.email);
+  const code = readEmailCode(req.body);
+  if (!email) {
+    res.status(400).json({ error: 'invalid_email' });
+    return;
+  }
+  if (!code) {
+    res.status(400).json({ error: 'invalid_code' });
+    return;
+  }
+  if (!emailCodeChecksAllowed(req)) {
+    res.status(429).json({ error: 'rate_limited' });
+    return;
+  }
+  if (!completeEmailVerification.immediate(req.appSessionId, keyedHash('email', email), code)) {
+    res.status(403).json({ error: 'verification_failed' });
+    return;
+  }
+  res.json({ verified: true, emailMasked: maskEmail(email) });
+});
+
+// Signed-in state comes only from a server-side account_sessions row: the anonymous app session cookie
+// proves nothing about an account, and nothing in a request body can name or change the account.
+function currentAccount(req) {
+  const token = readCookie(req, ACCOUNT_COOKIE);
+  if (!ACCOUNT_TOKEN_PATTERN.test(token)) return { presented: Boolean(token), account: null };
+  const tokenHash = keyedHash('account-session', token);
+  const row = findAccountSession.get(tokenHash);
+  const usable = row && row.expires_at > clock.now() && row.app_session_id === req.appSessionId && row.status === 'active';
+  return {
+    presented: true,
+    tokenHash,
+    account: usable ? { id: row.account_id, emailMasked: row.email_masked } : null
+  };
+}
+
+// Consuming the code, creating the account (signup only) and opening the sign-in commit together or not at all.
+// The account row is unique by email_hash in the database, so concurrent signups end on one account.
+const signInWithCode = db.transaction(({ intent, email, emailHash, code, appSessionId, ipHash, replacedTokenHash }) => {
+  const now = clock.now();
+  const audit = (event, outcome, accountId = null) => insertAuditEvent.run(now, event, outcome, accountId, ipHash);
+  if (!consumeEmailCode(appSessionId, emailHash, code, now)) {
+    audit(intent, 'bad_code');
+    return { error: 'verification_failed' };
+  }
+  const created = intent === 'signup' &&
+    insertAccount.run(crypto.randomBytes(16).toString('base64url'), emailHash, maskEmail(email), now).changes === 1;
+  const account = findAccountByEmail.get(emailHash);
+  if (!account) {
+    audit(intent, 'no_account');
+    return { error: 'account_not_found' };
+  }
+  if (created) audit('account_created', 'ok', account.id);
+  if (account.status !== 'active') {
+    audit(intent, 'account_unavailable', account.id);
+    return { error: 'account_unavailable' };
+  }
+  const totp = findTotpByAccount.get(account.id);
+  if (totp && totp.enabled_at !== null) {
+    const challenge = crypto.randomBytes(32).toString('base64url');
+    insertMfaChallenge.run(
+      keyedHash('mfa-challenge', challenge), account.id, appSessionId, intent,
+      replacedTokenHash, now, now + MFA_CHALLENGE_TTL_MS
+    );
+    audit('mfa_challenge', 'issued', account.id);
+    return { mfaRequired: true, challenge, created, emailMasked: account.email_masked };
+  }
+  // A fresh token at every sign-in: nothing presented before authentication can become a signed-in session.
+  if (replacedTokenHash) revokeAccountSession.run(now, replacedTokenHash);
+  const token = crypto.randomBytes(32).toString('base64url');
+  insertAccountSession.run(keyedHash('account-session', token), account.id, appSessionId, now, now + ACCOUNT_SESSION_MS);
+  audit(intent, 'ok', account.id);
+  return { token, created, emailMasked: account.email_masked };
+});
+
+const SIGN_IN_ERRORS = { verification_failed: 403, account_not_found: 404, account_unavailable: 403 };
+
+function signInRoute(intent) {
+  return (req, res) => {
+    const email = normalizeEmail(req.body && req.body.email);
+    const code = readEmailCode(req.body);
+    if (!email) {
+      res.status(400).json({ error: 'invalid_email' });
+      return;
+    }
+    if (intent === 'signup' && isDisposableEmail(email)) {
+      res.status(400).json({ error: 'email_not_allowed' });
+      return;
+    }
+    if (!code) {
+      res.status(400).json({ error: 'invalid_code' });
+      return;
+    }
+    if (!emailCodeChecksAllowed(req)) {
+      res.status(429).json({ error: 'rate_limited' });
+      return;
+    }
+    const result = signInWithCode.immediate({
+      intent,
+      email,
+      emailHash: keyedHash('email', email),
+      code,
+      appSessionId: req.appSessionId,
+      ipHash: keyedHash('ip', req.ip),
+      replacedTokenHash: currentAccount(req).tokenHash || null
+    });
+    if (result.error) {
+      res.status(SIGN_IN_ERRORS[result.error]).json({ error: result.error });
+      return;
+    }
+    if (result.mfaRequired) {
+      res.status(202).json({ mfaRequired: true, challenge: result.challenge });
+      return;
+    }
+    setAccountCookie(res, result.token, ACCOUNT_SESSION_MS / 1000);
+    res.status(result.created ? 201 : 200).json({ authenticated: true, created: result.created, emailMasked: result.emailMasked });
+  };
+}
+
+// Signup creates the account if the address has none (an existing account is signed in, never duplicated);
+// login never creates one.
+app.post('/api/account/signup', signInRoute('signup'));
+app.post('/api/account/login', signInRoute('login'));
+
+app.post('/api/account/mfa/verify', (req, res) => {
+  const challenge = req.body && req.body.challenge;
+  const code = req.body && req.body.code;
+  if (typeof challenge !== 'string' || !ACCOUNT_TOKEN_PATTERN.test(challenge) ||
+      typeof code !== 'string' || code.length > 32) {
+    res.status(400).json({ error: 'invalid_mfa_input' });
+    return;
+  }
+  if (!emailCodeChecksAllowed(req)) {
+    res.status(429).json({ error: 'rate_limited' });
+    return;
+  }
+  const result = db.transaction(() => {
+    const now = clock.now();
+    const tokenHash = keyedHash('mfa-challenge', challenge);
+    const pending = findMfaChallenge.get(tokenHash);
+    if (!pending || pending.app_session_id !== req.appSessionId || pending.consumed_at !== null ||
+        pending.expires_at <= now || pending.attempts >= MFA_MAX_ATTEMPTS) {
+      return { error: 'mfa_failed' };
+    }
+    const totp = findTotpByAccount.get(pending.account_id);
+    if (!totp || totp.enabled_at === null || !verifyTotpOrRecovery(pending.account_id, totp.secret_sealed, code, now)) {
+      failMfaChallenge.run(MFA_MAX_ATTEMPTS, now, tokenHash);
+      insertAuditEvent.run(now, 'mfa_verify', 'bad_code', pending.account_id, keyedHash('ip', req.ip));
+      return { error: 'mfa_failed' };
+    }
+    if (consumeMfaChallenge.run(now, tokenHash).changes !== 1) return { error: 'mfa_failed' };
+    const account = db.prepare('SELECT status, email_masked FROM accounts WHERE id = ?').get(pending.account_id);
+    if (!account || account.status !== 'active') return { error: 'account_unavailable' };
+    if (pending.replaced_token_hash) revokeAccountSession.run(now, pending.replaced_token_hash);
+    const sessionToken = crypto.randomBytes(32).toString('base64url');
+    insertAccountSession.run(keyedHash('account-session', sessionToken), pending.account_id, req.appSessionId,
+      now, now + ACCOUNT_SESSION_MS);
+    insertAuditEvent.run(now, 'mfa_verify', 'ok', pending.account_id, keyedHash('ip', req.ip));
+    return { token: sessionToken, intent: pending.intent, emailMasked: account.email_masked };
+  }).immediate();
+  if (result.error) {
+    res.status(403).json({ error: result.error });
+    return;
+  }
+  setAccountCookie(res, result.token, ACCOUNT_SESSION_MS / 1000);
+  res.json({ authenticated: true, emailMasked: result.emailMasked });
+});
+
+app.get('/api/account', (req, res) => {
+  const { presented, account } = currentAccount(req);
+  if (!account) {
+    if (presented) setAccountCookie(res, '', 0);
+    res.json({ authenticated: false });
+    return;
+  }
+  res.json({ authenticated: true, emailMasked: account.emailMasked });
+});
+
+app.get('/api/account/totp', (req, res) => {
+  const { account } = currentAccount(req);
+  if (!account) {
+    res.status(401).json({ error: 'not_authenticated' });
+    return;
+  }
+  const row = findTotpByAccount.get(account.id);
+  const recovery = db.prepare('SELECT COUNT(*) AS count FROM account_recovery_codes WHERE account_id = ? AND used_at IS NULL').get(account.id);
+  res.json({ enabled: Boolean(row && row.enabled_at !== null), recoveryCodesRemaining: recovery.count });
+});
+
+app.post('/api/account/totp/setup', (req, res) => {
+  const { account } = currentAccount(req);
+  if (!account) {
+    res.status(401).json({ error: 'not_authenticated' });
+    return;
+  }
+  const existing = findTotpByAccount.get(account.id);
+  if (existing && existing.enabled_at !== null) {
+    res.status(409).json({ error: 'totp_already_enabled' });
+    return;
+  }
+  const secret = base32Encode(crypto.randomBytes(20));
+  const result = saveTotpSecret.run(account.id, sealCode(secret, `account-totp:${account.id}`), clock.now());
+  if (!result.changes) {
+    res.status(409).json({ error: 'totp_already_enabled' });
+    return;
+  }
+  res.json({ secret, issuer: 'Product Labels', account: account.emailMasked });
+});
+
+app.post('/api/account/totp/enable', (req, res) => {
+  const { account } = currentAccount(req);
+  if (!account) {
+    res.status(401).json({ error: 'not_authenticated' });
+    return;
+  }
+  const code = req.body && req.body.code;
+  const row = findTotpByAccount.get(account.id);
+  if (!row || row.enabled_at !== null || typeof code !== 'string' || !/^\d{6}$/.test(code)) {
+    res.status(400).json({ error: 'invalid_totp_setup' });
+    return;
+  }
+  let secret;
+  try { secret = openCode(row.secret_sealed, `account-totp:${account.id}`); } catch {
+    res.status(500).json({ error: 'totp_unavailable' });
+    return;
+  }
+  const now = clock.now();
+  if (!validTotp(secret, code, now)) {
+    res.status(403).json({ error: 'invalid_totp_code' });
+    return;
+  }
+  const recoveryCodes = Array.from({ length: 10 }, newRecoveryCode);
+  db.transaction(() => {
+    if (!enableTotp.run(now, now, account.id).changes) throw new Error('TOTP enrollment changed concurrently.');
+    clearRecoveryCodes.run(account.id);
+    for (const recoveryCode of recoveryCodes) {
+      const normalized = normalizedRecoveryCode(recoveryCode);
+      insertRecoveryCode.run(account.id, keyedHash('recovery-code', `${account.id}:${normalized}`), now);
+    }
+    insertAuditEvent.run(now, 'totp_enabled', 'ok', account.id, keyedHash('ip', req.ip));
+  }).immediate();
+  res.json({ enabled: true, recoveryCodes });
+});
+
+app.post('/api/account/totp/disable', (req, res) => {
+  const { account } = currentAccount(req);
+  if (!account) {
+    res.status(401).json({ error: 'not_authenticated' });
+    return;
+  }
+  const code = req.body && req.body.code;
+  const row = findTotpByAccount.get(account.id);
+  if (!row || row.enabled_at === null || typeof code !== 'string' || code.length > 32) {
+    res.status(400).json({ error: 'invalid_totp_code' });
+    return;
+  }
+  const now = clock.now();
+  const removed = db.transaction(() => {
+    if (!verifyTotpOrRecovery(account.id, row.secret_sealed, code, now)) return false;
+    deleteTotp.run(account.id);
+    clearRecoveryCodes.run(account.id);
+    insertAuditEvent.run(now, 'totp_disabled', 'ok', account.id, keyedHash('ip', req.ip));
+    return true;
+  }).immediate();
+  if (!removed) {
+    res.status(403).json({ error: 'invalid_totp_code' });
+    return;
+  }
+  res.json({ enabled: false });
+});
+
+app.post('/api/account/logout', (req, res) => {
+  const { tokenHash, account } = currentAccount(req);
+  if (tokenHash) {
+    db.transaction(() => {
+      const now = clock.now();
+      if (revokeAccountSession.run(now, tokenHash).changes && account) {
+        insertAuditEvent.run(now, 'logout', 'ok', account.id, keyedHash('ip', req.ip));
+      }
+    }).immediate();
+  }
+  setAccountCookie(res, '', 0);
+  res.json({ authenticated: false });
+});
+
+// Device keys: an ECDSA P-256 key pair made in the browser (device-key.js) whose private half never leaves
+// it. A device exists only after the key signed a fresh server challenge; neither the account cookie nor
+// anything about the browser stands in for that signature.
+const COORDINATE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+
+function readPublicKey(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.hasOwn(value, 'd')) return null;
+  const { kty, crv, x, y } = value;
+  if (kty !== 'EC' || crv !== 'P-256' || !COORDINATE_PATTERN.test(x) || !COORDINATE_PATTERN.test(y)) return null;
+  const jwk = { kty, crv, x, y };
+  let key;
+  try {
+    key = crypto.createPublicKey({ key: jwk, format: 'jwk' }); // Also rejects points that are not on the curve.
+  } catch {
+    return null;
+  }
+  return { jwk, key, thumbprint: jwkThumbprint(jwk) };
+}
+
+// The browser binding is a hash, so the challenge never shows the HttpOnly session id to page scripts.
+const challengeSession = (req) => keyedHash('device-challenge-session', req.appSessionId).slice(0, 32);
+const challengeMac = (body) => crypto.createHmac('sha256', deviceChallengeKey).update(body).digest('base64url');
+
+function issueDeviceChallenge(claims) {
+  const body = Buffer.from(JSON.stringify({ v: 1, ...claims, n: crypto.randomBytes(16).toString('base64url') }))
+    .toString('base64url');
+  return `${body}.${challengeMac(body)}`;
+}
+
+function readDeviceChallenge(token, purpose, now) {
+  if (typeof token !== 'string' || token.length > 1024) return null;
+  const [body, mac, extra] = token.split('.');
+  if (!body || !mac || extra !== undefined || !safeEqual(mac, challengeMac(body))) return null;
+  let claims;
+  try {
+    claims = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+  const valid = claims && claims.v === 1 && claims.p === purpose &&
+    Number.isSafeInteger(claims.iat) && Number.isSafeInteger(claims.exp) && claims.iat <= now && now < claims.exp;
+  return valid ? claims : null;
+}
+
+function verifyDeviceSignature(key, challenge, signature) {
+  if (typeof signature !== 'string' || !/^[A-Za-z0-9_-]{86}$/.test(signature)) return false;
+  try {
+    return crypto.verify('sha256', Buffer.from(DEVICE_PROOF_PREFIX + challenge),
+      { key, dsaEncoding: 'ieee-p1363' }, Buffer.from(signature, 'base64url'));
+  } catch {
+    return false;
+  }
+}
+
+function signedInAccount(req, res) {
+  const { account } = currentAccount(req);
+  if (!account) res.status(401).json({ error: 'not_authenticated' });
+  return account;
+}
+
+function deviceLimitsAllowed(kind, accountId, req, perAccount) {
+  return consumeRateLimit.immediate(`device-${kind}:ip:${keyedHash('ip', req.ip)}`, 60, HOUR) &&
+    consumeRateLimit.immediate(`device-${kind}:account:${accountId}`, perAccount, HOUR);
+}
+
+// One active device per account: checked here under the write lock and enforced again by devices_one_active.
+const registerDevice = db.transaction(({ accountId, publicKey, now, ipHash }) => {
+  const audit = (outcome, deviceId = null) => insertDeviceAudit.run(now, 'device_register', outcome, accountId, deviceId, ipHash);
+  const account = selectAccountStatus.get(accountId);
+  if (!account || account.status !== 'active') {
+    audit('account_unavailable');
+    return { error: 'account_unavailable' };
+  }
+  if (findDeviceByThumbprint.get(publicKey.thumbprint)) {
+    audit('key_unavailable');
+    return { error: 'key_unavailable' };
+  }
+  if (findActiveDevice.get(accountId)) {
+    audit('device_limit_reached');
+    return { error: 'device_limit_reached' };
+  }
+  const id = crypto.randomBytes(16).toString('base64url');
+  insertDevice.run(id, accountId, publicKey.thumbprint, JSON.stringify(publicKey.jwk), now, now);
+  audit('ok', id);
+  return { registeredAt: now };
+});
+
+app.get('/api/devices', (req, res) => {
+  const account = signedInAccount(req, res);
+  if (!account) return;
+  const device = findActiveDevice.get(account.id);
+  res.json({ device: device ? {
+    keyThumbprint: device.key_thumbprint,
+    registeredAt: device.registered_at,
+    lastValidatedAt: device.last_validated_at
+  } : null });
+});
+
+app.post('/api/devices/challenge', (req, res) => {
+  const account = signedInAccount(req, res);
+  if (!account) return;
+  const purpose = req.body && req.body.purpose;
+  if (purpose !== 'register' && purpose !== 'prove' && purpose !== 'certificate') {
+    res.status(400).json({ error: 'invalid_purpose' });
+    return;
+  }
+  const publicKey = readPublicKey(req.body.publicKey);
+  if (!publicKey) {
+    res.status(400).json({ error: 'invalid_public_key' });
+    return;
+  }
+  if (!deviceLimitsAllowed('challenge', account.id, req, 30)) {
+    res.status(429).json({ error: 'rate_limited' });
+    return;
+  }
+  const active = findActiveDevice.get(account.id);
+  let deviceId = null;
+  if (purpose === 'register') {
+    const owner = findDeviceByThumbprint.get(publicKey.thumbprint);
+    const error = owner ? (owner.account_id === account.id && owner.revoked_at === null ? 'already_registered' : 'key_unavailable')
+      : active ? 'device_limit_reached' : null;
+    if (error) {
+      res.status(409).json({ error });
+      return;
+    }
+  } else {
+    if (!active || active.key_thumbprint !== publicKey.thumbprint) {
+      res.status(409).json({ error: 'device_not_registered' });
+      return;
+    }
+    deviceId = active.id;
+  }
+  const now = clock.now();
+  const challenge = issueDeviceChallenge({
+    p: purpose, acc: account.id, ses: challengeSession(req), key: publicKey.thumbprint, dev: deviceId,
+    iat: now, exp: now + DEVICE_CHALLENGE_TTL_MS
+  });
+  res.json({ challenge, expiresInSeconds: DEVICE_CHALLENGE_TTL_MS / 1000 });
+});
+
+app.get('/api/license/keys', (_req, res) => {
+  if (!licenseSigner) {
+    res.status(503).json({ error: 'license_signing_not_configured' });
+    return;
+  }
+  res.json({ keys: { [licenseSigner.kid]: licenseSigner.publicJwk } });
+});
+
+app.post('/api/license/certificate', (req, res) => {
+  const account = signedInAccount(req, res);
+  if (!account) return;
+  if (!licenseSigner) {
+    res.status(503).json({ error: 'license_signing_not_configured' });
+    return;
+  }
+  const publicKey = readPublicKey(req.body && req.body.publicKey);
+  if (!publicKey) {
+    res.status(400).json({ error: 'invalid_public_key' });
+    return;
+  }
+  if (!deviceLimitsAllowed('proof', account.id, req, 20)) {
+    res.status(429).json({ error: 'rate_limited' });
+    return;
+  }
+  const now = clock.now();
+  const ipHash = keyedHash('ip', req.ip);
+  const claims = readDeviceChallenge(req.body.challenge, 'certificate', now);
+  const device = claims && typeof claims.dev === 'string' ? findDevice.get(claims.dev) : null;
+  const proven = device && device.account_id === account.id && device.revoked_at === null &&
+    claims.acc === account.id && claims.ses === challengeSession(req) &&
+    claims.key === device.key_thumbprint && claims.key === publicKey.thumbprint &&
+    verifyDeviceSignature(crypto.createPublicKey({ key: JSON.parse(device.public_key_jwk), format: 'jwk' }),
+      req.body.challenge, req.body.signature);
+  if (!proven) {
+    insertDeviceAudit.run(now, 'license_certificate', 'proof_failed', account.id, device && device.account_id === account.id ? device.id : null, ipHash);
+    res.status(403).json({ error: 'proof_failed' });
+    return;
+  }
+  const result = db.transaction(() => {
+    const changed = markDeviceValidated.run(now, device.id, account.id, claims.iat).changes === 1;
+    if (!changed) return { error: 'proof_failed' };
+    const accountStatus = selectAccountStatus.get(account.id);
+    if (!accountStatus || accountStatus.status !== 'active') return { error: 'account_unavailable' };
+    const purchase = findActiveAccountPurchase.get(account.id);
+    let issued;
+    if (purchase) {
+      issued = licenseSigner.issuePaid({ accountId: account.id, deviceThumbprint: device.key_thumbprint, now });
+    } else {
+      let trial = findAccountTrial.get(account.id);
+      if (!trial) {
+        insertAccountTrial.run(account.id, device.key_thumbprint, now, now + TRIAL_MS);
+        trial = findAccountTrial.get(account.id);
+      }
+      if (trial.device_thumbprint !== device.key_thumbprint) return { error: 'trial_already_used' };
+      if (trial.expires_at <= now) return { error: 'trial_expired' };
+      issued = licenseSigner.issueTrial({ accountId: account.id, deviceThumbprint: device.key_thumbprint, now, trialExpiresAt: trial.expires_at });
+    }
+    const { jti, typ, kid, iat, exp, rva, grc } = issued.claims;
+    insertLicenseCertificate.run(jti, device.id, typ, kid, iat, exp || null, rva || null, grc || null);
+    insertDeviceAudit.run(now, 'license_certificate', 'issued', account.id, device.id, ipHash);
+    return { certificate: issued.token, type: typ, expiresAt: exp || null, revalidateAt: rva || null, graceUntil: grc || null };
+  }).immediate();
+  if (result.error) {
+    res.status(result.error === 'account_unavailable' ? 403 : 409).json({ error: result.error });
+    return;
+  }
+  res.json(result);
+});
+
+app.post('/api/devices/register', (req, res) => {
+  const account = signedInAccount(req, res);
+  if (!account) return;
+  const publicKey = readPublicKey(req.body && req.body.publicKey);
+  if (!publicKey) {
+    res.status(400).json({ error: 'invalid_public_key' });
+    return;
+  }
+  if (!deviceLimitsAllowed('proof', account.id, req, 20)) {
+    res.status(429).json({ error: 'rate_limited' });
+    return;
+  }
+  const now = clock.now();
+  const ipHash = keyedHash('ip', req.ip);
+  const claims = readDeviceChallenge(req.body.challenge, 'register', now);
+  // Proof of possession: the challenge is ours, current, for this account, browser and key, and that key signed it.
+  const proven = claims && claims.acc === account.id && claims.ses === challengeSession(req) &&
+    claims.key === publicKey.thumbprint && claims.dev === null &&
+    verifyDeviceSignature(publicKey.key, req.body.challenge, req.body.signature);
+  if (!proven) {
+    insertDeviceAudit.run(now, 'device_register', 'proof_failed', account.id, null, ipHash);
+    res.status(403).json({ error: 'proof_failed' });
+    return;
+  }
+  // A key can be registered once, ever (key_thumbprint is unique), so a register challenge succeeds at most once.
+  const result = registerDevice.immediate({ accountId: account.id, publicKey, now, ipHash });
+  if (result.error) {
+    res.status(409).json({ error: result.error });
+    return;
+  }
+  res.status(201).json({ registered: true, keyThumbprint: publicKey.thumbprint, registeredAt: result.registeredAt });
+});
+
+app.post('/api/devices/verify', (req, res) => {
+  const account = signedInAccount(req, res);
+  if (!account) return;
+  const publicKey = readPublicKey(req.body && req.body.publicKey);
+  if (!publicKey) {
+    res.status(400).json({ error: 'invalid_public_key' });
+    return;
+  }
+  if (!deviceLimitsAllowed('proof', account.id, req, 20)) {
+    res.status(429).json({ error: 'rate_limited' });
+    return;
+  }
+  const now = clock.now();
+  const ipHash = keyedHash('ip', req.ip);
+  const claims = readDeviceChallenge(req.body.challenge, 'prove', now);
+  const device = claims && typeof claims.dev === 'string' ? findDevice.get(claims.dev) : null;
+  // The signature is checked with the key stored at registration, never with the one in the request.
+  const proven = device && device.account_id === account.id && device.revoked_at === null &&
+    claims.acc === account.id && claims.ses === challengeSession(req) &&
+    claims.key === device.key_thumbprint && claims.key === publicKey.thumbprint &&
+    verifyDeviceSignature(crypto.createPublicKey({ key: JSON.parse(device.public_key_jwk), format: 'jwk' }),
+      req.body.challenge, req.body.signature);
+  const verified = Boolean(proven) && db.transaction(() => {
+    const changed = markDeviceValidated.run(now, device.id, account.id, claims.iat).changes === 1;
+    insertDeviceAudit.run(now, 'device_verify', changed ? 'ok' : 'challenge_used', account.id, device.id, ipHash);
+    return changed;
+  }).immediate();
+  if (!verified) {
+    if (!proven) {
+      const ownDevice = device && device.account_id === account.id ? device.id : null;
+      insertDeviceAudit.run(now, 'device_verify', 'proof_failed', account.id, ownDevice, ipHash);
+    }
+    res.status(403).json({ error: 'proof_failed' });
+    return;
+  }
+  res.json({ verified: true, keyThumbprint: device.key_thumbprint, lastValidatedAt: now });
+});
+
 app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
 app.get(['/', '/index.html'], (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/manifest.webmanifest', (_req, res) => res.sendFile(path.join(__dirname, 'manifest.webmanifest')));
 app.get('/sw.js', (_req, res) => res.sendFile(path.join(__dirname, 'sw.js')));
+app.get('/device-key.js', (_req, res) => res.sendFile(path.join(__dirname, 'device-key.js')));
+app.get('/license-client.js', (_req, res) => res.sendFile(path.join(__dirname, 'license-client.js')));
 app.get('/web-icon-192.svg', (_req, res) => res.sendFile(path.join(__dirname, 'web-icon-192.svg')));
 app.get('/web-icon-512.svg', (_req, res) => res.sendFile(path.join(__dirname, 'web-icon-512.svg')));
 app.use((_req, res) => res.status(404).send('Not found.'));
@@ -874,7 +1758,9 @@ app.use((error, _req, res, _next) => {
     res.status(error.status).json({ error: 'invalid_request' });
     return;
   }
-  console.error('Request failed:', error.message);
+  // Provider and database exceptions can echo request data. Keep operational logs free of
+  // attacker-controlled values, credentials, and customer data.
+  console.error(`Request failed (${safeErrorCode(error)}).`);
   res.status(500).json({ error: 'internal_server_error' });
 });
 

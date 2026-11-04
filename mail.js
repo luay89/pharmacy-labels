@@ -12,6 +12,21 @@ function normalizeEmail(value) {
   return email.length <= 254 && EMAIL_PATTERN.test(email) ? email : null;
 }
 
+// Well-known throwaway inboxes, matched on the domain and its subdomains. Not a complete defence on
+// its own (new services appear daily); extend the list as abuse shows up.
+const DISPOSABLE_EMAIL_DOMAINS = new Set([
+  '10minutemail.com', '20minutemail.com', 'discard.email', 'dispostable.com', 'emailondeck.com',
+  'fakeinbox.com', 'getnada.com', 'guerrillamail.com', 'guerrillamail.net', 'guerrillamailblock.com',
+  'grr.la', 'maildrop.cc', 'mailinator.com', 'mailnesia.com', 'mintemail.com', 'mohmal.com',
+  'sharklasers.com', 'spamgourmet.com', 'temp-mail.org', 'tempail.com', 'throwawaymail.com',
+  'trashmail.com', 'yopmail.com', 'yopmail.net'
+]);
+
+function isDisposableEmail(email) {
+  const labels = email.slice(email.lastIndexOf('@') + 1).split('.');
+  return labels.some((_label, index) => DISPOSABLE_EMAIL_DOMAINS.has(labels.slice(index).join('.')));
+}
+
 function maskEmail(email) {
   const [local, domain] = email.split('@');
   const labels = domain.split('.');
@@ -47,13 +62,21 @@ function supportLine(supportEmail) {
 }
 
 const templates = {
-  purchaseConfirmation({ orderRef, amountTotal, currency, supportEmail }) {
+  purchaseConfirmation({ orderRef, amountTotal, currency, licensePolicy, supportEmail }) {
     const subject = `${APP_NAME}: purchase confirmed (${orderRef})`;
+    const licenseLines = licensePolicy === 'single_device'
+      ? [
+          'Your license is attached to the account you used at checkout and its one registered device.',
+          'Keep access to this account and its registered device. Contact support with your order reference if you lose access.'
+        ]
+      : [
+          'Your license is active on one device at a time: the device you used to complete the purchase.',
+          'If you move to a new device, you can transfer the license once from the app by confirming this email address.'
+        ];
     return { subject, ...layout('Your purchase is complete', [
       `Thank you for buying ${APP_NAME}. Your payment of ${formatAmount(amountTotal, currency)} was confirmed.`,
       `Order reference: ${orderRef}`,
-      'Your license is active on one device at a time: the device you used to complete the purchase.',
-      'If you move to a new device, you can transfer the license once from the app by confirming this email address.',
+      ...licenseLines,
       supportLine(supportEmail)
     ]) };
   },
@@ -65,6 +88,15 @@ const templates = {
       `The code expires in ${minutes} minutes and can be used only once. Never share it with anyone.`,
       'Completing the transfer disables the license on the previous device and uses your only allowed transfer.',
       'If you did not request this, ignore this email; the license stays where it is. ' + supportLine(supportEmail)
+    ]) };
+  },
+  emailVerificationCode({ code, minutes, supportEmail }) {
+    const subject = `${APP_NAME}: email verification code`;
+    return { subject, ...layout('Confirm your email address', [
+      `Your ${APP_NAME} verification code is: ${code}`,
+      `The code expires in ${minutes} minutes and can be used only once. Never share it with anyone.`,
+      'If you did not request this, ignore this email; nothing changes without the code.',
+      supportEmail ? `Need help? Reply to this email or contact ${supportEmail}.` : 'Need help? Reply to this email.'
     ]) };
   },
   transferUnavailable({ orderRef, reason, supportEmail }) {
@@ -138,4 +170,4 @@ function createMailer(env) {
   return mailer;
 }
 
-module.exports = { createMailer, readMailConfig, templates, normalizeEmail, maskEmail, APP_NAME };
+module.exports = { createMailer, readMailConfig, templates, normalizeEmail, maskEmail, isDisposableEmail, APP_NAME };

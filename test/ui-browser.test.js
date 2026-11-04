@@ -94,7 +94,7 @@ before(async () => {
   const { app } = require('../server');
   server = await new Promise((resolve) => { const l = app.listen(PORT, '127.0.0.1', () => resolve(l)); });
   profile = fs.mkdtempSync(path.join(os.tmpdir(), 'product-labels-chrome-'));
-  chrome = spawn(chromePath, ['--headless=new', '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${DEBUG_PORT}`,
+  chrome = spawn(chromePath, ['--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${DEBUG_PORT}`,
     `--user-data-dir=${profile}`, '--window-size=1280,900', 'about:blank'], { stdio: 'ignore' });
   let target;
   for (let i = 0; i < 100 && !target; i++) {
@@ -153,7 +153,7 @@ test('the help dialog opens, closes with Escape, the backdrop and the close butt
     steps: document.querySelectorAll('#buy-dialog li').length, empty: [...document.querySelectorAll('#buy-dialog [data-i18n]')].filter((e) => !e.textContent.trim()).length,
     support: document.getElementById('help-support').textContent, go: !document.getElementById('buy-go').hidden,
     focused: document.activeElement.id })`);
-  assert.deepEqual(content.headings, ['Purchase and Activation', 'Keep Your Purchase Email', 'Transfer to Another Device', 'Troubleshooting']);
+  assert.deepEqual(content.headings, ['Accounts and device licenses', 'Purchase and Activation', 'Keep Your Purchase Email', 'Transfer to Another Device', 'Troubleshooting']);
   assert.equal(content.empty, 0);
   assert.ok(content.steps >= 13);
   assert.match(content.support, /Reply to your purchase confirmation email/);
@@ -187,7 +187,7 @@ test('the chosen language persists across reloads and unknown values fall back t
     button: document.getElementById('btn-buy-help').textContent, unlock: document.getElementById('btn-unlock').textContent })`);
   assert.deepEqual(ar, { lang: 'ar', dir: 'rtl', button: 'شراء الترخيص', unlock: 'شراء لمرة واحدة (5$)' });
   await ev(`document.getElementById('btn-buy-help').click()`);
-  assert.equal(await ev(`document.querySelector('#buy-dialog h3').textContent`), 'الشراء والتفعيل');
+  assert.equal(await ev(`document.querySelector('#buy-dialog [data-i18n="helpA"]').textContent`), 'الشراء والتفعيل');
   await ev(`document.getElementById('buy-close').click()`);
 
   await load();
@@ -225,7 +225,8 @@ test('every language renders its own texts, direction and currency example', { s
       emptyKeys: [], preset: d.presetMm.replace('{w}', '40').replace('{h}', '30')
     }, lang);
     await ev(`document.getElementById('btn-buy-help').click()`);
-    assert.equal(await ev(`document.querySelector('#buy-dialog h3').textContent`), d.helpA, `${lang} dialog`);
+    assert.equal(await ev(`document.querySelector('#buy-dialog [data-i18n="helpAccountTitle"]').textContent`), d.helpAccountTitle, `${lang} account help heading`);
+    assert.equal(await ev(`document.querySelector('#buy-dialog [data-i18n="helpA"]').textContent`), d.helpA, `${lang} dialog`);
     await ev(`document.getElementById('buy-close').click()`);
   }
   await setLanguage('en');

@@ -1,0 +1,14 @@
+.git
+.vscode
+.env
+.env.*
+!.env.example
+node_modules
+data
+backups
+*.sqlite
+*.sqlite-*
+*.log
+test
+android
+CODEX_HANDOFF.md

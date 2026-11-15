@@ -1,0 +1,23 @@
+{
+  "name": "product-labels",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Product label web app with server-verified Stripe unlock",
+  "engines": {
+    "node": ">=22.9.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "check": "node --check server.js && node --check db.js && node --check mail.js && node --check backup.js && node --check license-cert.js && node --check license-client.js && node --check device-key.js && node --check recover-device.js && node --check reconcile-purchase.js",
+    "backup": "node --env-file-if-exists=.env backup.js",
+    "reconcile-purchase": "node --env-file-if-exists=.env reconcile-purchase.js",
+    "test": "node --test --test-concurrency=1"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.7.3",
+    "nodemailer": "^10.1.7",
+    "stripe": "^18.5.0"
+  }
+}

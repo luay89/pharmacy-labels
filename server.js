@@ -99,11 +99,25 @@ if (require.main === module) {
     console.warn('Email disabled: SMTP_HOST is not set (purchase confirmations stay queued, license transfers are unavailable).');
   }
   if (!licenseSigner) console.warn('Offline licenses disabled: LICENSE_SIGNING_KEY_FILE and LICENSE_SIGNING_KEY are not set.');
-  const testPurchases = STRIPE_LIVE_MODE && db.prepare(
-    "SELECT COUNT(*) AS n FROM stripe_purchases WHERE checkout_session_id LIKE 'cs\\_test\\_%' ESCAPE '\\'"
-  ).get().n;
-  if (testPurchases) {
-    console.warn(`Live Stripe key, but this database holds ${testPurchases} purchase(s) from Stripe test mode that still unlock their devices. Start production with a fresh DATA_DIR.`);
+  if (process.env.NODE_ENV === 'production') {
+    const unclassifiedPurchases = db.prepare(`
+      SELECT COUNT(*) AS n FROM stripe_purchases
+      WHERE app_session_id IS NOT NULL AND status IN ('active', 'disputed') AND stripe_mode IS NULL
+    `).get().n;
+    if (unclassifiedPurchases) {
+      throw new Error(`Production startup blocked: ${unclassifiedPurchases} active or disputed purchase(s) with unknown Stripe mode may affect entitlements. Review each purchase in Stripe and reconcile it with "npm run reconcile-purchase".`);
+    }
+
+    if (STRIPE_LIVE_MODE) {
+      const testPurchases = db.prepare(`
+        SELECT COUNT(*) AS n FROM stripe_purchases
+        WHERE app_session_id IS NOT NULL AND status IN ('active', 'disputed')
+          AND stripe_mode = 'test' AND excluded_from_entitlements = 0
+      `).get().n;
+      if (testPurchases) {
+        throw new Error(`Production startup blocked: ${testPurchases} active or disputed test-mode purchase(s) may affect entitlements while Stripe Live is configured. Review the database before startup.`);
+      }
+    }
   }
 }
 
@@ -126,11 +140,11 @@ const reserveLabels = db.prepare(`
 const savePurchase = db.prepare(`
   INSERT INTO stripe_purchases (
     payment_intent_id, app_session_id, status, checkout_session_id,
-    email_hash, email_masked, order_ref, amount_total, currency, account_id, license_policy
+    email_hash, email_masked, order_ref, amount_total, currency, account_id, license_policy, stripe_mode
   )
   VALUES (
     @intentId, @appSessionId, 'active', @checkoutSessionId,
-    @emailHash, @emailMasked, @orderRef, @amountTotal, @currency, @accountId, @licensePolicy
+    @emailHash, @emailMasked, @orderRef, @amountTotal, @currency, @accountId, @licensePolicy, @stripeMode
   )
   ON CONFLICT(payment_intent_id) DO UPDATE SET
     app_session_id = COALESCE(stripe_purchases.app_session_id, excluded.app_session_id),
@@ -354,6 +368,7 @@ const refreshEntitlement = db.prepare(`
     SELECT 1 FROM stripe_purchases
     WHERE stripe_purchases.app_session_id = app_sessions.id
       AND stripe_purchases.status = 'active'
+      AND stripe_purchases.excluded_from_entitlements = 0
   ) THEN 1 ELSE 0 END
   WHERE id = ?
 `);
@@ -605,7 +620,8 @@ function activatePurchase(session, appSessionId) {
     amountTotal: session.amount_total,
     currency: session.currency,
     accountId,
-    licensePolicy: accountId ? 'single_device' : 'legacy'
+    licensePolicy: accountId ? 'single_device' : 'legacy',
+    stripeMode: session.livemode ? 'live' : 'test'
   });
   refreshEntitlement.run(appSessionId);
   const purchase = findPurchase.get(intentId);

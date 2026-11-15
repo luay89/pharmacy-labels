@@ -280,6 +280,13 @@ test('migration keeps legacy purchases, backs up first and is safe to re-run', (
       { payment_intent_id: 'pi_legacy_paid', license_policy: 'legacy', account_id: null },
       { payment_intent_id: 'pi_legacy_refunded', license_policy: 'legacy', account_id: null }
     ], 'purchases made before accounts keep the terms they were sold under');
+    assert.deepEqual(first.db.prepare(
+      'SELECT payment_intent_id, stripe_mode, stripe_mode_review_reference, stripe_mode_reviewed_at FROM stripe_purchases ORDER BY payment_intent_id'
+    ).all(), [
+      { payment_intent_id: 'pi_legacy_orphan', stripe_mode: null, stripe_mode_review_reference: null, stripe_mode_reviewed_at: null },
+      { payment_intent_id: 'pi_legacy_paid', stripe_mode: null, stripe_mode_review_reference: null, stripe_mode_reviewed_at: null },
+      { payment_intent_id: 'pi_legacy_refunded', stripe_mode: null, stripe_mode_review_reference: null, stripe_mode_reviewed_at: null }
+    ], 'legacy purchases without a verifiable Checkout ID remain unclassified');
     assert.deepEqual(first.db.prepare('SELECT DISTINCT account_id, device_id FROM app_sessions').all(),
       [{ account_id: null, device_id: null }]);
     first.db.close();
@@ -315,6 +322,7 @@ test('a v2 database upgrades to the current schema, keeping sessions and purchas
     assert.deepEqual(db.prepare('SELECT id, unlocked, last_seen_at FROM app_sessions').get(), { id: 'v2-buyer', unlocked: 1, last_seen_at: null });
     assert.deepEqual(db.prepare('SELECT app_session_id, status, transfers_used, license_policy FROM stripe_purchases').get(),
       { app_session_id: 'v2-buyer', status: 'active', transfers_used: 1, license_policy: 'legacy' });
+    assert.equal(db.prepare('SELECT stripe_mode FROM stripe_purchases').get().stripe_mode, 'test');
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM stripe_events').get().n, 1);
     db.close();
     assert.equal(fs.statSync(path.join(dir, DB_FILE)).mode & 0o777, 0o600, 'database file is owner-only');
@@ -383,9 +391,13 @@ test('a v3 database upgrades additively through v4: rows, columns and indexes st
       assert.deepEqual(db.prepare(`SELECT ${keys.join(', ')} FROM ${table} ORDER BY rowid`).all(), rows, table);
     }
 
-    assert.deepEqual(columns(db, 'stripe_purchases').slice(-2), [
+    assert.deepEqual(columns(db, 'stripe_purchases').slice(-6), [
       { name: 'account_id', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
-      { name: 'license_policy', type: 'TEXT', notnull: 1, dflt_value: "'legacy'", pk: 0 }
+      { name: 'license_policy', type: 'TEXT', notnull: 1, dflt_value: "'legacy'", pk: 0 },
+      { name: 'stripe_mode', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { name: 'stripe_mode_review_reference', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { name: 'stripe_mode_reviewed_at', type: 'INTEGER', notnull: 0, dflt_value: null, pk: 0 },
+      { name: 'excluded_from_entitlements', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 }
     ]);
     assert.deepEqual(columns(db, 'app_sessions').slice(-2).map((c) => [c.name, c.notnull, c.dflt_value]),
       [['account_id', 0, null], ['device_id', 0, null]]);
@@ -499,9 +511,9 @@ test('a v4 database upgrades additively through current schema: legacy terms sta
     before.close();
 
     const { db, migration } = openDatabase(dir);
-    assert.equal(SCHEMA_VERSION, 7);
+    assert.equal(SCHEMA_VERSION, 8);
     assert.equal(migration.from, 4);
-    assert.equal(migration.to, 7);
+    assert.equal(migration.to, 8);
     const after = schemaObjects(db);
     assert.deepEqual(after.filter((o) => !v4Objects.some((v) => v.name === o.name)).map((o) => o.name).sort(), [
       'account_mfa_challenges', 'account_mfa_challenges_session', 'account_recovery_codes',
@@ -510,8 +522,16 @@ test('a v4 database upgrades additively through current schema: legacy terms sta
     ]);
     for (const object of v4Objects) assert.ok(after.some((o) => o.name === object.name && o.type === object.type), object.name);
     for (const table of tables) {
-      assert.deepEqual(columns(db, table), v4Columns[table], table);
-      assert.deepEqual(db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(), v4Rows[table], table);
+      const expectedColumns = table === 'stripe_purchases'
+        ? [...v4Columns[table],
+          { name: 'stripe_mode', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+          { name: 'stripe_mode_review_reference', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+          { name: 'stripe_mode_reviewed_at', type: 'INTEGER', notnull: 0, dflt_value: null, pk: 0 },
+          { name: 'excluded_from_entitlements', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 }]
+        : v4Columns[table];
+      assert.deepEqual(columns(db, table), expectedColumns, table);
+      const oldColumns = v4Columns[table].map((column) => `"${column.name}"`).join(', ');
+      assert.deepEqual(db.prepare(`SELECT ${oldColumns} FROM ${table} ORDER BY rowid`).all(), v4Rows[table], table);
     }
     assert.deepEqual(columns(db, 'account_sessions').map((c) => [c.name, c.notnull]), [
       ['token_hash', 1], ['account_id', 1], ['app_session_id', 1], ['created_at', 1], ['expires_at', 1], ['revoked_at', 0]
@@ -527,8 +547,40 @@ test('a v4 database upgrades additively through current schema: legacy terms sta
     assert.deepEqual(schemaObjects(backup), v4Objects, 'the backup is the untouched v4 database');
     backup.close();
     const again = openDatabase(dir);
-    assert.deepEqual(again.migration, { from: 7, to: 7, backupPath: null });
+    assert.deepEqual(again.migration, { from: 8, to: 8, backupPath: null });
     again.db.close();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('v4 purchase modes are backfilled only from valid Stripe Checkout ID prefixes', () => {
+  const dir = databaseAt(4, V4_SCHEMA, `
+    INSERT INTO app_sessions (id, unlocked) VALUES
+      ('mode-test-session', 1), ('mode-live-session', 1), ('mode-unknown-session', 1);
+    INSERT INTO stripe_purchases (payment_intent_id, app_session_id, status, checkout_session_id)
+      VALUES ('pi_mode_test', 'mode-test-session', 'active', 'cs_test_valid123'),
+             ('pi_mode_live', 'mode-live-session', 'active', 'cs_live_valid456'),
+             ('pi_mode_unknown', 'mode-unknown-session', 'active', NULL);
+  `);
+  try {
+    const { db, migration } = openDatabase(dir);
+    assert.equal(migration.from, 4);
+    assert.equal(migration.to, SCHEMA_VERSION);
+    assert.deepEqual(db.prepare(`
+      SELECT payment_intent_id, stripe_mode, stripe_mode_review_reference, stripe_mode_reviewed_at, status
+      FROM stripe_purchases ORDER BY payment_intent_id
+    `).all(), [
+      { payment_intent_id: 'pi_mode_live', stripe_mode: 'live', stripe_mode_review_reference: null, stripe_mode_reviewed_at: null, status: 'active' },
+      { payment_intent_id: 'pi_mode_test', stripe_mode: 'test', stripe_mode_review_reference: null, stripe_mode_reviewed_at: null, status: 'active' },
+      { payment_intent_id: 'pi_mode_unknown', stripe_mode: null, stripe_mode_review_reference: null, stripe_mode_reviewed_at: null, status: 'active' }
+    ]);
+    assert.deepEqual(db.prepare('SELECT id, unlocked FROM app_sessions ORDER BY id').all(), [
+      { id: 'mode-live-session', unlocked: 1 },
+      { id: 'mode-test-session', unlocked: 1 },
+      { id: 'mode-unknown-session', unlocked: 1 }
+    ], 'classification never grants or revokes an existing entitlement');
+    db.close();
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

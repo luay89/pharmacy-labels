@@ -239,6 +239,28 @@ const MIGRATIONS = [
       );
       CREATE INDEX IF NOT EXISTS device_recoveries_account_time ON device_recoveries(account_id, recovered_at);
     `);
+  },
+  function purchaseModeClassification(db) {
+    addColumns(db, 'stripe_purchases', [
+      ['stripe_mode', "TEXT CHECK (stripe_mode IN ('test', 'live'))"],
+      ['stripe_mode_review_reference', 'TEXT'],
+      ['stripe_mode_reviewed_at', 'INTEGER'],
+      ['excluded_from_entitlements', 'INTEGER NOT NULL DEFAULT 0 CHECK (excluded_from_entitlements IN (0, 1))']
+    ]);
+
+    const setKnownMode = db.prepare(`
+      UPDATE stripe_purchases SET stripe_mode = ?
+      WHERE payment_intent_id = ? AND stripe_mode IS NULL
+    `);
+    const purchases = db.prepare(`
+      SELECT payment_intent_id, checkout_session_id
+      FROM stripe_purchases
+      WHERE stripe_mode IS NULL AND checkout_session_id IS NOT NULL
+    `).all();
+    for (const purchase of purchases) {
+      const match = /^cs_(test|live)_[A-Za-z0-9]+$/.exec(purchase.checkout_session_id);
+      if (match) setKnownMode.run(match[1], purchase.payment_intent_id);
+    }
   }
 ];
 

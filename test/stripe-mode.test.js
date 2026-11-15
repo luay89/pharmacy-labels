@@ -65,7 +65,7 @@ async function webhook(type, object, livemode) {
   assert.equal(response.status, 200);
 }
 
-const purchase = (intent) => db.prepare('SELECT app_session_id, status FROM stripe_purchases WHERE payment_intent_id = ?').get(intent);
+const purchase = (intent) => db.prepare('SELECT app_session_id, status, stripe_mode FROM stripe_purchases WHERE payment_intent_id = ?').get(intent);
 
 test('test-mode events never unlock, refund or restore on a live server', async () => {
   const tester = await newSession();
@@ -88,7 +88,7 @@ test('test-mode events never unlock, refund or restore on a live server', async 
   // A test-mode refund or dispute for the live purchase changes nothing.
   await webhook('charge.refunded', { object: 'charge', livemode: false, refunded: true, payment_intent: 'pi_mode_live' }, false);
   await webhook('charge.dispute.created', { object: 'dispute', livemode: false, payment_intent: 'pi_mode_live' }, false);
-  assert.deepEqual(purchase('pi_mode_live'), { app_session_id: buyer.id, status: 'active' });
+  assert.deepEqual(purchase('pi_mode_live'), { app_session_id: buyer.id, status: 'active', stripe_mode: 'live' });
   assert.equal(await unlocked(buyer), true);
 
   // The real refund still applies.
@@ -107,25 +107,102 @@ test('a live server rejects test checkout session ids before asking Stripe', asy
   assert.equal(await unlocked(client), false);
 });
 
-test('starting with a live key warns when the database still holds test purchases', async () => {
+function launchProductionServer(dataDir, port) {
+  const child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), stdio: ['ignore', 'pipe', 'pipe'],
+    env: { PATH: process.env.PATH, NODE_ENV: 'production', PORT: String(port), DATA_DIR: dataDir,
+      SESSION_SECRET: process.env.SESSION_SECRET, PUBLIC_APP_URL: 'https://labels.example.test',
+      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET: webhookSecret } });
+  let output = '';
+  let settled = false;
+  return new Promise((resolve) => {
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve({ ...result, child, output });
+    };
+    const onData = (chunk) => {
+      output += chunk;
+      if (output.includes('listening')) finish({ started: true });
+    };
+    child.stdout.on('data', onData);
+    child.stderr.on('data', onData);
+    child.on('exit', (code, signal) => finish({ started: false, code, signal }));
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish({ started: false, timedOut: true });
+    }, 5000);
+  });
+}
+
+async function stopProductionServer(child) {
+  if (child.exitCode !== null) return;
+  const exited = new Promise((resolve) => child.once('exit', resolve));
+  child.kill('SIGTERM');
+  await exited;
+}
+
+function seedPurchase(dataDir, { intent, sessionId, checkoutSessionId, stripeMode }) {
+  const { db: copy } = require('../db').openDatabase(dataDir);
+  copy.prepare('INSERT INTO app_sessions (id, unlocked) VALUES (?, 1)').run(sessionId);
+  copy.prepare(`
+    INSERT INTO stripe_purchases (payment_intent_id, app_session_id, status, checkout_session_id, stripe_mode)
+    VALUES (?, ?, 'active', ?, ?)
+  `).run(intent, sessionId, checkoutSessionId, stripeMode);
+  copy.close();
+}
+
+test('production refuses active legacy purchases with a missing Checkout ID and unknown mode', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'product-labels-live-start-'));
   try {
+    seedPurchase(dir, { intent: 'pi_unknown', sessionId: 'legacy-session', checkoutSessionId: null, stripeMode: null });
+    const result = await launchProductionServer(dir, 31911);
+    assert.equal(result.started, false);
+    assert.notEqual(result.code, 0);
+    assert.match(result.output, /Production startup blocked: 1 active or disputed purchase\(s\) with unknown Stripe mode/);
+    assert.doesNotMatch(result.output, /sk_live_|whsec_/);
+
     const { db: copy } = require('../db').openDatabase(dir);
-    copy.prepare("INSERT INTO stripe_purchases (payment_intent_id, status, checkout_session_id) VALUES ('pi_left_from_testing', 'active', 'cs_test_left')").run();
-    copy.prepare("INSERT INTO stripe_purchases (payment_intent_id, status, checkout_session_id) VALUES ('pi_live_ok', 'active', 'cs_live_ok')").run();
+    assert.deepEqual(copy.prepare(`
+      SELECT p.status, p.stripe_mode, s.unlocked
+      FROM stripe_purchases p JOIN app_sessions s ON s.id = p.app_session_id
+      WHERE p.payment_intent_id = 'pi_unknown'
+    `).get(), { status: 'active', stripe_mode: null, unlocked: 1 });
     copy.close();
-    const child = spawn(process.execPath, ['server.js'], { cwd: path.join(__dirname, '..'), stdio: ['ignore', 'pipe', 'pipe'],
-      env: { PATH: process.env.PATH, PORT: '31911', DATA_DIR: dir, SESSION_SECRET: process.env.SESSION_SECRET,
-        PUBLIC_APP_URL: 'http://127.0.0.1:31911', STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET: webhookSecret } });
-    let output = '';
-    child.stdout.on('data', (d) => { output += d; });
-    child.stderr.on('data', (d) => { output += d; });
-    for (let i = 0; i < 100 && !output.includes('listening'); i++) await new Promise((r) => setTimeout(r, 50));
-    const exited = new Promise((resolve) => child.on('exit', resolve));
-    child.kill('SIGTERM');
-    await exited;
-    assert.match(output, /holds 1 purchase\(s\) from Stripe test mode/);
-    assert.doesNotMatch(output, /sk_live_|whsec_/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('production refuses active test-mode purchases when Stripe Live is configured', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'product-labels-live-start-'));
+  try {
+    seedPurchase(dir, { intent: 'pi_test', sessionId: 'test-session', checkoutSessionId: 'cs_test_verified', stripeMode: 'test' });
+    const result = await launchProductionServer(dir, 31911);
+    assert.equal(result.started, false);
+    assert.notEqual(result.code, 0);
+    assert.match(result.output, /Production startup blocked: 1 active or disputed test-mode purchase/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('production starts with a classified live purchase and preserves its entitlement', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'product-labels-live-start-'));
+  try {
+    seedPurchase(dir, { intent: 'pi_live', sessionId: 'live-session', checkoutSessionId: 'cs_live_verified', stripeMode: 'live' });
+    const result = await launchProductionServer(dir, 31911);
+    assert.equal(result.started, true, result.output);
+    assert.equal(result.output.includes('Production startup blocked'), false);
+    await stopProductionServer(result.child);
+
+    const { db: copy } = require('../db').openDatabase(dir);
+    assert.deepEqual(copy.prepare(`
+      SELECT p.status, p.stripe_mode, s.unlocked
+      FROM stripe_purchases p JOIN app_sessions s ON s.id = p.app_session_id
+      WHERE p.payment_intent_id = 'pi_live'
+    `).get(), { status: 'active', stripe_mode: 'live', unlocked: 1 });
+    copy.close();
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

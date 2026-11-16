@@ -8,9 +8,11 @@
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env server.js",
-    "check": "node --check server.js && node --check db.js && node --check mail.js && node --check backup.js && node --check license-cert.js && node --check license-client.js && node --check device-key.js && node --check recover-device.js && node --check reconcile-purchase.js",
+    "check": "sh -n docker-entrypoint.sh && node --check server.js && node --check db.js && node --check mail.js && node --check backup.js && node --check license-cert.js && node --check license-client.js && node --check device-key.js && node --check recover-device.js && node --check reconcile-purchase.js && node --check scripts/fly-deploy.js",
     "backup": "node --env-file-if-exists=.env backup.js",
     "reconcile-purchase": "node --env-file-if-exists=.env reconcile-purchase.js",
+    "fly:predeploy": "node scripts/fly-deploy.js check",
+    "fly:deploy": "node scripts/fly-deploy.js deploy",
     "test": "node --test --test-concurrency=1"
   },
   "dependencies": {
